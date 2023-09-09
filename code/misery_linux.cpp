@@ -95,7 +95,7 @@ int main()
     Memory.Size = Kilobytes(1);
     Memory.Data = malloc(Memory.Size);
     Memory.WindowHeight = 800;
-    Memory.WindowWidth = 1000;
+    Memory.WindowWidth = 1400;
     Memory.IsRunning = true;
     
     InitWindow(Memory.WindowWidth, Memory.WindowHeight, "Misery");
@@ -105,6 +105,7 @@ int main()
     
     while(Memory.IsRunning)
     {
+#if 1
         time_t SOLastWriteTime = LinuxGetFileLastWriteTime(SO_FILE_NAME);
         if(SOLastWriteTime != ProgramCode.LastWriteTime)
         {
@@ -115,6 +116,26 @@ int main()
             ProgramCode = LinuxLoadProgramCode(SO_FILE_NAME);
             printf("Done Reloading.\n\n");
         }
+#endif
+#if 0
+        if(IsKeyPressed(KEY_U))
+        {
+            if(ProgramCode.Code)
+            {
+                LinuxUnloadProgramCode(&ProgramCode);
+                printf("Unloading code\n");
+            }
+            else
+            {
+                printf("Code is already unloaded!\n");
+            }
+        }
+        if(IsKeyPressed(KEY_L))
+        {
+            ProgramCode = LinuxLoadProgramCode(SO_FILE_NAME);
+            printf("Loading code\n");
+        }
+#endif
         
         if(ProgramCode.UpdateAndRender)
         {
@@ -123,6 +144,9 @@ int main()
         else
         {
             printf("UpdateAndRender is NULL!\n");
+            //BeginDrawing();
+            //ClearBackground(WHITE);
+            //EndDrawing();
         }
     }
     

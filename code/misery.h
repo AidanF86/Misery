@@ -24,7 +24,7 @@ enum layer_type
 struct layer
 {
     Color ModColor;
-    layer_position Position;
+    v2 Position;
     f32 Scale;
     
     layer_type Type;
@@ -56,6 +56,8 @@ struct document
     
     RenderTexture2D Texture;
     
+    int CurrentLayerIndex;
+    
     f32 Scale;
     v2 Offset;
 };
@@ -68,14 +70,49 @@ typedef struct document_list
     inline const document& operator[](size_t Index) const { return Data[Index]; }
 } document_list;
 
+enum tool
+{
+    Tool_Transform,
+    Tool_Scale,
+};
+
+#define ToolCount 2
+const char *ToolStrings[] = {
+    "Transform",
+    "Scale",
+};
+
+struct tool_state
+{
+    union
+    {
+        struct
+        {// transform
+            b32 DraggingX;
+            b32 DraggingY;
+            b32 DraggingBoth;
+        };
+    };
+};
+
 struct program_state
 {
     f32 dTime;
+    i32 ScreenWidth, ScreenHeight;
+    
+    b32 CursorInImGui;
     
     document_list OpenDocuments;
     int CurrentDocumentIndex;
     
     rect View;
+    
+    tool Tool;
+    tool_state ToolState;
+    
+    struct { // Options
+        b32 ShowLayerOutline;
+    };
 };
 
 
