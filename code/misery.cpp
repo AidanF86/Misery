@@ -167,6 +167,8 @@ AddAction(program_state *ProgramState, action Action)
         // add weirdly
         ActionStack->Count = ProgramState->PrevActionIndex + 1;
         ListAdd(ActionStack, Action);
+        
+        ProgramState->PrevActionIndex++;
     }
 }
 
@@ -246,7 +248,7 @@ UndoAction(program_state *ProgramState, action *Action)
 {
     printf("Undoing");
     document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
-    layer *Layer = &CurrentDocument->Layers[CurrentDocument->CurrentLayerIndex];
+    layer *Layer = &CurrentDocument->Layers[Action->LayerIndex];
     if(Action->Type == Action_Translate)
     {
         printf(" Translate Action: %d to %d\n", Action->InitialPosition, Action->FinalPosition);
@@ -260,7 +262,7 @@ void
 RedoAction(program_state *ProgramState, action *Action)
 {
     document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
-    layer *Layer = &CurrentDocument->Layers[CurrentDocument->CurrentLayerIndex];
+    layer *Layer = &CurrentDocument->Layers[Action->LayerIndex];
     if(Action->Type == Action_Translate)
     {
         Layer->Position = Action->FinalPosition;
@@ -279,6 +281,24 @@ void
 Redo(program_state *ProgramState)
 {
     RedoAction(ProgramState, &ProgramState->ActionStack[ProgramState->PrevActionIndex + 1]);
+}
+
+
+void
+UndoOrRedoTo(program_state *ProgramState, int Index)
+{
+    b32 MovingForward = false;
+    while(Index > ProgramState->PrevActionIndex + 1)
+    {
+        Redo(ProgramState);
+        MovingForward = true;
+    }
+    if(MovingForward)
+        return;
+    while(Index <= ProgramState->PrevActionIndex)
+    {
+        Undo(ProgramState);
+    }
 }
 
 extern "C"
@@ -484,7 +504,7 @@ extern "C"
             
             rlImGuiBegin();
             {
-                char Buffer[20];
+                char Buffer[100];
                 //ImGui::SetNextWindowPos({0, 0});
                 
                 ImGui::Text("Scale: %f", CurrentDocument->Scale);
@@ -549,7 +569,7 @@ extern "C"
                 {
                     b32 ShouldUndo = false;
                     b32 ShouldRedo = false;
-                    if(ActionStack->Count > 0)
+                    if(ActionStack->Count > 0 && ProgramState->PrevActionIndex > -1)
                         ShouldUndo = ImGui::Button("Undo");
                     else
                         ImGui::Text("Undo");
@@ -569,15 +589,44 @@ extern "C"
                         for(int i = ActionStack->Count; i > 0; i--)
                         {
                             // TODO(cheryl): proper action naming
-                            sprintf(Buffer, "action %d", i);
+                            action *Action = &ProgramState->ActionStack[i-1];
+                            if(Action->Type == Action_Translate)
+                            {
+                                sprintf(Buffer, "#%d T L%d (%d,%d)->(%d,%d)",
+                                        i, Action->LayerIndex,
+                                        (int)Action->InitialPosition.x, (int)Action->InitialPosition.y,
+                                        (int)Action->FinalPosition.x, (int)Action->FinalPosition.y);
+                            }
+                            else if(Action->Type == Action_ScaleAndTranslate)
+                            {
+                                sprintf(Buffer, "#%d S", i);
+                            }
+                            else
+                            {
+                                sprintf(Buffer, "??? (This is a bug, please report)");
+                            }
                             ImVec4 TextColor = {1, 1, 1, 1};
                             if(i > ProgramState->PrevActionIndex + 1)
                             {
                                 TextColor = {1, 1, 1, 0.5};
                             }
                             
-                            ImGui::TextColored(TextColor, Buffer);
+                            ImGui::PushStyleColor(ImGuiCol_Text, TextColor); 
+                            b32 ShouldUndoOrRedoTo = ImGui::Selectable(Buffer, i == ProgramState->PrevActionIndex + 1);
+                            ImGui::PopStyleColor();
+                            
+                            if(ShouldUndoOrRedoTo)
+                            {
+                                UndoOrRedoTo(ProgramState, i);
+                            }
                         }
+                        
+                        b32 ShouldUndoOrRedoToBeginning = ImGui::Selectable("Beginning", 0 == ProgramState->PrevActionIndex + 1);
+                        if(ShouldUndoOrRedoToBeginning)
+                        {
+                            UndoOrRedoTo(ProgramState, 0);
+                        }
+                        
                         ImGui::EndListBox();
                     }
                     
