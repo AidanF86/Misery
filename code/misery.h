@@ -72,28 +72,75 @@ typedef struct document_list
 
 enum tool
 {
+    Tool_Translate,
     Tool_Transform,
-    Tool_Scale,
 };
 
 #define ToolCount 2
 const char *ToolStrings[] = {
+    "Translate",
     "Transform",
-    "Scale",
 };
 
 struct tool_state
 {
+    b32 BeingUsed;
     union
     {
         struct
-        {// transform
+        {// translate
             b32 DraggingX;
             b32 DraggingY;
             b32 DraggingBoth;
+            v2 InitialPosition;
+        };
+        struct
+        {// transform
+            b32 DraggingLeft;
+            b32 DraggingRight;
+            b32 DraggingTop;
+            b32 DraggingBotom;
+            b32 DraggingTopLeft;
+            b32 DraggingTopRight;
+            b32 DraggingBottomLeft;
+            b32 DraggingBottomRight;
         };
     };
 };
+
+enum action_type
+{
+    Action_Translate,
+    Action_ScaleAndTranslate,
+};
+struct action
+{
+    action_type Type;
+    
+    int LayerIndex;
+    union{
+        struct{
+            // Translate
+            v2 InitialPosition;
+            v2 FinalPosition;
+        };
+        struct{
+            // ScaleAndTranslate
+        };
+        struct{
+        };
+    };
+};
+typedef struct action_list
+{
+    int Count;
+    int ArraySize;
+    action *Data;
+    inline action& operator[](size_t Index) { return Data[Index]; }
+    inline const action& operator[](size_t Index) const { return Data[Index]; }
+} action_list;
+
+
 
 struct program_state
 {
@@ -110,9 +157,26 @@ struct program_state
     tool Tool;
     tool_state ToolState;
     
+    action_list ActionStack;
+    int PrevActionIndex;
+    
     struct { // Options
+        // Changable
         b32 ShowLayerOutline;
+        
+        // Unchangeable
+        
     };
+    
+    f32 TranslateToolArrowLength;
+    f32 TranslateToolArrowWidth;
+    f32 TranslateToolBoxSize;
+    
+    rect TranslateToolXArrowRect;
+    rect TranslateToolYArrowRect;
+    rect TranslateToolBoxRect;
+    
+    f32 TransformToolBoxSize;
 };
 
 

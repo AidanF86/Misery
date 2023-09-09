@@ -146,4 +146,65 @@ int ListRemove(document_list *List, document E)
 
 
 
+/*======= action List =======*/
+action_list ActionList()
+{
+    action_list Result;
+    Result.Count = 0;
+    Result.ArraySize = 20;
+    Result.Data = (action *)malloc(20 * sizeof(action));
+    return Result;
+}
+
+action_list ActionList(int Size)
+{
+    action_list Result;
+    Result.Count = 0;
+    Result.ArraySize = Size;
+    Result.Data = (action *)malloc(Size * sizeof(action));
+    return Result;
+}
+
+#if 0
+int ListIndexOf(action_list *List, action E)
+{
+    int Result = -1;
+    for(int i = 0; i < List->Count; i++)
+    {
+        if(List->Data[i] == E)
+        {
+            Result = i;
+            break;
+        }
+    }
+    return Result;
+}
+#endif
+
+int ListRemoveAt(action_list *List, int Index)
+{
+    if(Index >= 0 && Index < List->Count)
+    {
+        for(int i = Index; i < List->Count; i++)
+        {
+            List->Data[i] = List->Data[i+1];
+        }
+        List->Count--;
+        return 1;
+    }
+    return 0;
+}
+#if 0
+int ListRemove(action_list *List, action E)
+{
+    int Index = ListIndexOf(List, E);
+    if(Index != -1)
+    {
+        ListRemoveAt(List, Index);
+    }
+    return Index;
+}
+#endif
+
+
 #endif //MISERY_LISTS_H

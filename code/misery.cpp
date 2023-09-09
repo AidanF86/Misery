@@ -147,6 +147,140 @@ SetupView(program_state *ProgramState)
     *View = Rect(LeftPadding, TopPadding, ViewWidth, ViewHeight);
 }
 
+void
+AddAction(program_state *ProgramState, action Action)
+{
+    // TODO(cheryl): test this
+    action_list *ActionStack = &ProgramState->ActionStack;
+    if(ProgramState->PrevActionIndex == ActionStack->Count - 1 || ActionStack->Count == 0)
+    {
+        printf("Adding normally\n");
+        // add normally
+        if(ActionStack->Count > 0)
+            ProgramState->PrevActionIndex++;
+        
+        ListAdd(ActionStack, Action);
+    }
+    else
+    {
+        printf("Adding weirdly\n");
+        // add weirdly
+        ActionStack->Count = ProgramState->PrevActionIndex + 1;
+        ListAdd(ActionStack, Action);
+    }
+}
+
+void
+ProcessTool(program_state *ProgramState)
+{
+    rect *View = &ProgramState->View;
+    tool_state *ToolState = &ProgramState->ToolState;
+    document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
+    layer *CurrentLayer = &CurrentDocument->Layers[CurrentDocument->CurrentLayerIndex];
+    v2 MousePosition = GetMousePosition();
+    
+    if(ProgramState->Tool == Tool_Translate)
+    {
+        if(IsMouseButtonDown(0))
+        {
+            if(!ToolState->DraggingX && !ToolState->DraggingY && !ToolState->DraggingBoth)
+            {
+                ToolState->BeingUsed = true;
+                ToolState->DraggingBoth = false;
+                ToolState->DraggingX = false;
+                ToolState->DraggingY = false;
+                
+                if(CheckCollisionPointRec(MousePosition, ProgramState->TranslateToolBoxRect))
+                    ToolState->DraggingBoth = true;
+                else if(CheckCollisionPointRec(MousePosition, ProgramState->TranslateToolXArrowRect))
+                    ToolState->DraggingX = true;
+                else if(CheckCollisionPointRec(MousePosition, ProgramState->TranslateToolYArrowRect))
+                    ToolState->DraggingY = true;
+                else
+                    ToolState->BeingUsed = false;
+                
+                if(ToolState->BeingUsed)
+                {
+                    ToolState->InitialPosition = CurrentLayer->Position;
+                }
+            }
+        }
+        else
+        {
+            if(ToolState->DraggingX || ToolState->DraggingY || ToolState->DraggingBoth)
+            {
+                // TODO(cheryl): append action
+                action Action;
+                Action.Type = Action_Translate;
+                Action.InitialPosition = ToolState->InitialPosition;
+                Action.FinalPosition = CurrentLayer->Position;
+                Action.LayerIndex = CurrentDocument->CurrentLayerIndex;
+                AddAction(ProgramState, Action);
+            }
+            ToolState->DraggingBoth = false;
+            ToolState->DraggingX = false;
+            ToolState->DraggingY = false;
+        }
+        
+        f32 ViewDocRatio = CurrentDocument->h / View->height / CurrentDocument->Scale;
+        f32 Scalar = ViewDocRatio;
+        v2 dPosition = GetMouseDelta();
+        
+        if(ToolState->DraggingBoth)
+        {
+            CurrentLayer->Position += dPosition * Scalar;
+        }
+        else if(ToolState->DraggingX)
+        {
+            CurrentLayer->Position.x += dPosition.x * Scalar;
+        }
+        else if(ToolState->DraggingY)
+        {
+            CurrentLayer->Position.y += dPosition.y * Scalar;
+        }
+    }
+}
+
+void
+UndoAction(program_state *ProgramState, action *Action)
+{
+    printf("Undoing");
+    document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
+    layer *Layer = &CurrentDocument->Layers[CurrentDocument->CurrentLayerIndex];
+    if(Action->Type == Action_Translate)
+    {
+        printf(" Translate Action: %d to %d\n", Action->InitialPosition, Action->FinalPosition);
+        Layer->Position = Action->InitialPosition;
+    }
+    
+    ProgramState->PrevActionIndex--;
+}
+
+void
+RedoAction(program_state *ProgramState, action *Action)
+{
+    document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
+    layer *Layer = &CurrentDocument->Layers[CurrentDocument->CurrentLayerIndex];
+    if(Action->Type == Action_Translate)
+    {
+        Layer->Position = Action->FinalPosition;
+    }
+    
+    ProgramState->PrevActionIndex++;
+}
+
+void
+Undo(program_state *ProgramState)
+{
+    UndoAction(ProgramState, &ProgramState->ActionStack[ProgramState->PrevActionIndex]);
+}
+
+void
+Redo(program_state *ProgramState)
+{
+    RedoAction(ProgramState, &ProgramState->ActionStack[ProgramState->PrevActionIndex + 1]);
+}
+
 extern "C"
 {
     PROGRAM_UPDATE_AND_RENDER(ProgramUpdateAndRender)
@@ -154,13 +288,23 @@ extern "C"
         program_state *ProgramState = (program_state *)Memory->Data;
         rect *View = &ProgramState->View;
         tool_state *ToolState = &ProgramState->ToolState;
+        action_list *ActionStack = &ProgramState->ActionStack;
         
         if(!Memory->Initialized)
         {
             Memory->Initialized = true;
             
-            ProgramState->Tool = Tool_Transform;
+            ProgramState->ActionStack = ActionList(20);
+            ProgramState->PrevActionIndex = 0;
+            
+            ProgramState->Tool = Tool_Translate;
             ProgramState->ShowLayerOutline = true;
+            
+            ProgramState->TranslateToolArrowLength = 100;
+            ProgramState->TranslateToolArrowWidth = 30;
+            ProgramState->TranslateToolBoxSize = 30;
+            
+            ProgramState->TransformToolBoxSize = 10;
             
             ProgramState->OpenDocuments = DocumentList(20);
             ListAdd(&ProgramState->OpenDocuments, NewDocument(1500, 2000));
@@ -191,6 +335,11 @@ extern "C"
         ProgramState->ScreenHeight = GetScreenHeight();
         i32 ScreenWidth = ProgramState->ScreenWidth;
         i32 ScreenHeight = ProgramState->ScreenHeight;
+        v2 MousePosition = GetMousePosition();
+        
+        f32 TranslateToolArrowLength = ProgramState->TranslateToolArrowLength;
+        f32 TranslateToolArrowWidth = ProgramState->TranslateToolArrowWidth;
+        f32 TranslateToolBoxSize = ProgramState->TranslateToolBoxSize;
         
         if(IsWindowResized())
         {
@@ -200,27 +349,18 @@ extern "C"
         rect LayerRect = GetLayerScreenRect(CurrentLayer, CurrentDocument, View);
         v2 LayerCenter = V2(LayerRect.x + LayerRect.width / 2.0f,
                             LayerRect.y + LayerRect.height / 2.0f);
-        f32 TransformToolArrowLength = 100;
-        f32 TransformToolArrowWidth = 30;
-        f32 TransformToolBoxSize = 30;
-        rect TransformToolXArrowRect = Rect(LayerCenter.x, 
-                                            LayerCenter.y - TransformToolArrowWidth / 2.0f,
-                                            TransformToolArrowLength,
-                                            TransformToolArrowWidth);
-        rect TransformToolYArrowRect = Rect(LayerCenter.x - TransformToolArrowWidth / 2.0f, 
-                                            LayerCenter.y,
-                                            TransformToolArrowWidth,
-                                            TransformToolArrowLength);
-        rect TransformToolBoxRect = Rect(LayerCenter.x, LayerCenter.y,
-                                         TransformToolBoxSize, TransformToolBoxSize);
         
-        // tools
-        if(ProgramState->Tool == Tool_Transform)
-        {
-            if(!ToolState->DraggingX && !ToolState->DraggingY && !ToolState->DraggingBoth)
-            {
-            }
-        }
+        ProgramState->TranslateToolXArrowRect = Rect(LayerCenter.x, 
+                                                     LayerCenter.y - TranslateToolArrowWidth / 2.0f,
+                                                     TranslateToolArrowLength,
+                                                     TranslateToolArrowWidth);
+        ProgramState->TranslateToolYArrowRect = Rect(LayerCenter.x - TranslateToolArrowWidth / 2.0f, 
+                                                     LayerCenter.y,
+                                                     TranslateToolArrowWidth,
+                                                     TranslateToolArrowLength);
+        ProgramState->TranslateToolBoxRect = Rect(LayerCenter.x, LayerCenter.y,
+                                                  TranslateToolBoxSize, TranslateToolBoxSize);
+        
         
         
         
@@ -231,6 +371,9 @@ extern "C"
         
         if(!ProgramState->CursorInImGui)
         {
+            
+            ProcessTool(ProgramState);
+            
             f32 dScale = 0;
             f32 MouseScroll = GetMouseWheelMoveV().y;
             dScale += MouseScroll;
@@ -266,7 +409,7 @@ extern "C"
             dOffset.x += IsKeyDown(KEY_RIGHT) - IsKeyDown(KEY_LEFT);
             f32 MoveSpeed = 10;
             dOffset *= MoveSpeed;
-            if(IsMouseButtonDown(0))
+            if(IsMouseButtonDown(1))
             {
                 dOffset += GetMouseDelta() * -1 ;
             }
@@ -323,7 +466,7 @@ extern "C"
                 DrawRectangleLinesEx(LayerRect, 5, PURPLE);
             }
             
-            if(ProgramState->Tool == Tool_Transform)
+            if(ProgramState->Tool == Tool_Translate)
             {
                 Color XColor = BLUE;
                 Color YColor = BLUE;
@@ -334,16 +477,20 @@ extern "C"
                     YColor = YELLOW;
                 if(ToolState->DraggingBoth)
                     BoxColor = YELLOW;
-                DrawRectangleLinesEx(TransformToolYArrowRect, 5, XColor);
-                DrawRectangleLinesEx(TransformToolXArrowRect, 5, YColor);
-                DrawRectangleLinesEx(TransformToolBoxRect, 5, BoxColor);
+                DrawRectangleLinesEx(ProgramState->TranslateToolXArrowRect, 5, XColor);
+                DrawRectangleLinesEx(ProgramState->TranslateToolYArrowRect, 5, YColor);
+                DrawRectangleLinesEx(ProgramState->TranslateToolBoxRect, 5, BoxColor);
             }
             
             rlImGuiBegin();
             {
+                char Buffer[20];
                 //ImGui::SetNextWindowPos({0, 0});
                 
                 ImGui::Text("Scale: %f", CurrentDocument->Scale);
+                ImGui::Text("PrevActionIndex: %d", ProgramState->PrevActionIndex);
+                ImGui::Text("ActionStack Count: %d", ProgramState->ActionStack.Count);
+                
                 
                 if(ImGui::Button("New Bitmap Layer"))
                 {
@@ -351,6 +498,7 @@ extern "C"
                     ListAdd(&CurrentDocument->Layers, Layer);
                 }
                 
+                // TOOLS
                 if(ImGui::TreeNodeEx("Tools", ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen))
                 {
                     for(int i = 0; i < ToolCount; i++)
@@ -364,6 +512,7 @@ extern "C"
                     ImGui::TreePop();
                 }
                 
+                // LAYERS
                 if(ImGui::TreeNodeEx("Layers", ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen))
                 {
                     f32 LayerAlpha = ((f32)CurrentLayer->ModColor.a)/255.0f;
@@ -378,7 +527,6 @@ extern "C"
                     
                     if(ImGui::BeginListBox(""))
                     {
-                        char Buffer[20];
                         for(int i = 0; i < CurrentDocument->Layers.Count; i++)
                         {
                             sprintf(Buffer, "layer %d", i);
@@ -394,6 +542,47 @@ extern "C"
                     ImGui::TreePop();
                 }
                 
+                // ACTIONS
+                sprintf(Buffer, "Actions (%d)", ActionStack->Count);
+                
+                if(ImGui::TreeNodeEx(Buffer, ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    b32 ShouldUndo = false;
+                    b32 ShouldRedo = false;
+                    if(ActionStack->Count > 0)
+                        ShouldUndo = ImGui::Button("Undo");
+                    else
+                        ImGui::Text("Undo");
+                    ImGui::SameLine();
+                    if(ActionStack->Count > ProgramState->PrevActionIndex + 1)
+                        ShouldRedo = ImGui::Button("Redo");
+                    else
+                        ImGui::Text("Redo");
+                    
+                    if(ShouldUndo)
+                        Undo(ProgramState);
+                    if(ShouldRedo)
+                        Redo(ProgramState);
+                    
+                    if(ImGui::BeginListBox(""))
+                    {
+                        for(int i = ActionStack->Count; i > 0; i--)
+                        {
+                            // TODO(cheryl): proper action naming
+                            sprintf(Buffer, "action %d", i);
+                            ImVec4 TextColor = {1, 1, 1, 1};
+                            if(i > ProgramState->PrevActionIndex + 1)
+                            {
+                                TextColor = {1, 1, 1, 0.5};
+                            }
+                            
+                            ImGui::TextColored(TextColor, Buffer);
+                        }
+                        ImGui::EndListBox();
+                    }
+                    
+                    ImGui::TreePop();
+                }
             }
             rlImGuiEnd();
         }
