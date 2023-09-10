@@ -241,6 +241,9 @@ ProcessTool(program_state *ProgramState)
             CurrentLayer->Position.y += dPosition.y * Scalar;
         }
     }
+    else if(ProgramState->Tool == Tool_Transform)
+    {
+    }
 }
 
 void
@@ -274,13 +277,19 @@ RedoAction(program_state *ProgramState, action *Action)
 void
 Undo(program_state *ProgramState)
 {
-    UndoAction(ProgramState, &ProgramState->ActionStack[ProgramState->PrevActionIndex]);
+    if(ProgramState->ActionStack.Count > 0 &&  ProgramState->PrevActionIndex > -1)
+    {
+        UndoAction(ProgramState, &ProgramState->ActionStack[ProgramState->PrevActionIndex]);
+    }
 }
 
 void
 Redo(program_state *ProgramState)
 {
-    RedoAction(ProgramState, &ProgramState->ActionStack[ProgramState->PrevActionIndex + 1]);
+    if(ProgramState->ActionStack.Count > ProgramState->PrevActionIndex > -1)
+    {
+        RedoAction(ProgramState, &ProgramState->ActionStack[ProgramState->PrevActionIndex + 1]);
+    }
 }
 
 
@@ -301,6 +310,71 @@ UndoOrRedoTo(program_state *ProgramState, int Index)
     }
 }
 
+b32
+SaveDocument(document *Document)
+{
+    // TODO(cheryl)
+    return false;
+}
+
+b32
+ExportDocument(document *Document)
+{
+    // write to png file
+    // TODO(cheryl): add file dialog, add multiple export filetypes
+    
+    Image DocumentImage = LoadImageFromTexture(Document->Texture.texture);
+    
+    // Flip image
+    ImageFlipVertical(&DocumentImage);
+    
+    // TODO(cheryl): wait until image is "ready"?
+    b32 Result = ExportImage(DocumentImage, "TestDocument.png");
+    
+    return Result;
+}
+
+void
+MakeNewLayerFromImage(program_state *ProgramState, Image ImageToUse)
+{
+    layer Layer;
+    Layer.Type = LayerType_Bitmap;
+    Layer.Texture = LoadTextureFromImage(ImageToUse);
+    Layer.ModColor = WHITE;
+    Layer.Position = V2(0, 0);
+    ListAdd(&ProgramState->OpenDocuments[0].Layers, Layer);
+}
+
+void
+HandleFileDrop(program_state *ProgramState)
+{
+    FilePathList Files = LoadDroppedFiles();
+    
+    // TODO(cheryl): handle multiple image files
+    // TODO(cheryl): once again, handle different image filetypes
+    // TODO(cheryl): handle loading from urls
+    
+    // Only load one image
+    if(Files.count == 0)
+    {
+        printf("No files were dropped!\n");
+    }
+    else
+    {
+        char *ImagePath = Files.paths[0];
+        Image DroppedImage = LoadImage(ImagePath);
+        
+        if(IsImageReady(DroppedImage))
+        {
+            MakeNewLayerFromImage(ProgramState, DroppedImage);
+        }
+        
+        UnloadImage(DroppedImage);
+    }
+    
+    UnloadDroppedFiles(Files);
+}
+
 extern "C"
 {
     PROGRAM_UPDATE_AND_RENDER(ProgramUpdateAndRender)
@@ -317,7 +391,7 @@ extern "C"
             ProgramState->ActionStack = ActionList(20);
             ProgramState->PrevActionIndex = 0;
             
-            ProgramState->Tool = Tool_Translate;
+            ProgramState->Tool = Tool_Transform;
             ProgramState->ShowLayerOutline = true;
             
             ProgramState->TranslateToolArrowLength = 100;
@@ -328,7 +402,6 @@ extern "C"
             
             ProgramState->OpenDocuments = DocumentList(20);
             ListAdd(&ProgramState->OpenDocuments, NewDocument(1500, 2000));
-            //ProgramState->OpenDocuments[0].Scale = 0.2f;
             
             layer Layer;
             Layer.Type = LayerType_Bitmap;
@@ -381,6 +454,49 @@ extern "C"
         ProgramState->TranslateToolBoxRect = Rect(LayerCenter.x, LayerCenter.y,
                                                   TranslateToolBoxSize, TranslateToolBoxSize);
         
+        int i = 0;
+        for(f32 y = LayerRect.y; y <= LayerRect.y + LayerRect.height + 1; y += LayerRect.height / 2.0f)
+        {
+            for(f32 x = LayerRect.x; x <= LayerRect.x + LayerRect.width + 1; x += LayerRect.width / 2.0f)
+            {
+                if(i == 4)
+                {
+                    i++;
+                    continue;
+                }
+                int Index = i;
+                if(i > 4)
+                    Index = i-1;
+                ProgramState->TransformToolRects[Index] = Rect(x - ProgramState->TransformToolBoxSize / 2.0f,
+                                                               y - ProgramState->TransformToolBoxSize / 2.0f,
+                                                               ProgramState->TransformToolBoxSize,
+                                                               ProgramState->TransformToolBoxSize);
+                i++;
+            }
+        }
+#if 0
+        ProgramState->TransformToolTopLeftRect = Rect(LayerRect.x - TransformToolBoxSize / 2.0f,
+                                                      LayerRect.y - TransformToolBoxSize / 2.0f,
+                                                      TransformToolBoxSize, TransformToolBoxSize);
+        ProgramState->TransformToolTopRect = Rect(LayerRect.x + LayerRect.width / 2.0f - TransformToolBoxSize / 2.0f,
+                                                  LayerRect.y - TransformToolBoxSize / 2.0f,
+                                                  TransformToolBoxSize, TransformToolBoxSize);
+        ProgramState->TransformToolTopRightRect = Rect(LayerRect.x - TransformToolBoxSize / 2.0f,
+                                                       LayerRect.y - TransformToolBoxSize / 2.0f,
+                                                       TransformToolBoxSize, TransformToolBoxSize);
+        ProgramState->TransformToolTopLeftRect = Rect(LayerRect.x - TransformToolBoxSize / 2.0f,
+                                                      LayerRect.y - TransformToolBoxSize / 2.0f,
+                                                      TransformToolBoxSize, TransformToolBoxSize);
+#endif
+        
+        if(IsFileDropped())
+        {
+            HandleFileDrop(ProgramState);
+        }
+        
+        
+        // TODO(cheryl): move view movement processing to before tool rect determination to
+        // prevent it from lagging behind
         
         
         
@@ -501,6 +617,13 @@ extern "C"
                 DrawRectangleLinesEx(ProgramState->TranslateToolYArrowRect, 5, YColor);
                 DrawRectangleLinesEx(ProgramState->TranslateToolBoxRect, 5, BoxColor);
             }
+            else if(ProgramState->Tool == Tool_Transform)
+            {
+                for(int i = 0; i < 8; i++)
+                {
+                    DrawRectangleLinesEx(ProgramState->TransformToolRects[i], 5, BLUE);
+                }
+            }
             
             rlImGuiBegin();
             {
@@ -510,6 +633,10 @@ extern "C"
                 ImGui::Text("Scale: %f", CurrentDocument->Scale);
                 ImGui::Text("PrevActionIndex: %d", ProgramState->PrevActionIndex);
                 ImGui::Text("ActionStack Count: %d", ProgramState->ActionStack.Count);
+                if(ImGui::Button("Export"))
+                {
+                    ExportDocument(CurrentDocument);
+                }
                 
                 
                 if(ImGui::Button("New Bitmap Layer"))

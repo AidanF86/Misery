@@ -96,14 +96,21 @@ struct tool_state
         };
         struct
         {// transform
-            b32 DraggingLeft;
-            b32 DraggingRight;
-            b32 DraggingTop;
-            b32 DraggingBotom;
-            b32 DraggingTopLeft;
-            b32 DraggingTopRight;
-            b32 DraggingBottomLeft;
-            b32 DraggingBottomRight;
+            union
+            {
+                struct
+                {
+                    b32 DraggingLeft;
+                    b32 DraggingRight;
+                    b32 DraggingTop;
+                    b32 DraggingBotom;
+                    b32 DraggingTopLeft;
+                    b32 DraggingTopRight;
+                    b32 DraggingBottomLeft;
+                    b32 DraggingBottomRight;
+                };
+                b32 Dragging[8];
+            };
         };
     };
 };
@@ -168,6 +175,7 @@ struct program_state
         
     };
     
+    // Translate Tool
     f32 TranslateToolArrowLength;
     f32 TranslateToolArrowWidth;
     f32 TranslateToolBoxSize;
@@ -176,7 +184,24 @@ struct program_state
     rect TranslateToolYArrowRect;
     rect TranslateToolBoxRect;
     
+    // Transform Tool
     f32 TransformToolBoxSize;
+    
+    union
+    {
+        struct
+        {
+            rect TransformToolTopLeftRect;
+            rect TransformToolTopRect;
+            rect TransformToolTopRightRect;
+            rect TransformToolLeftRect;
+            rect TransformToolRightRect;
+            rect TransformToolBottomLeftRect;
+            rect TransformToolBottomRect;
+            rect TransformToolBottomRightRect;
+        };
+        rect TransformToolRects[8];
+    };
 };
 
 
