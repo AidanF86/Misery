@@ -24,13 +24,15 @@ enum layer_type
 struct layer
 {
     Color ModColor;
-    v2 Position;
-    f32 Scale;
+    rect Rect;
+    //v2 Position;
+    //f32 Scale;
     
     layer_type Type;
     union{
         struct{
             Texture2D Texture;
+            b32 FlippedX, FlippedY;
         };
         struct{
         };
@@ -100,16 +102,18 @@ struct tool_state
             {
                 struct
                 {
+                    b32 DraggingTopLeft;
+                    b32 DraggingTop;
+                    b32 DraggingTopRight;
                     b32 DraggingLeft;
                     b32 DraggingRight;
-                    b32 DraggingTop;
-                    b32 DraggingBotom;
-                    b32 DraggingTopLeft;
-                    b32 DraggingTopRight;
                     b32 DraggingBottomLeft;
+                    b32 DraggingBottom;
                     b32 DraggingBottomRight;
+                    
+                    b32 DraggingWhole;
                 };
-                b32 Dragging[8];
+                b32 Dragging[9];
             };
         };
     };
@@ -133,6 +137,8 @@ struct action
         };
         struct{
             // ScaleAndTranslate
+            rect InitialRect;
+            rect FinalRect;
         };
         struct{
         };
@@ -199,8 +205,10 @@ struct program_state
             rect TransformToolBottomLeftRect;
             rect TransformToolBottomRect;
             rect TransformToolBottomRightRect;
+            
+            rect TransformToolWholeRect;
         };
-        rect TransformToolRects[8];
+        rect TransformToolRects[9];
     };
 };
 

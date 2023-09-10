@@ -65,6 +65,19 @@ operator>(v2 A, v2 B)
 }
 
 inline rect
+operator+(rect R, v2 V)
+{
+    rect Result = {R.x + V.x, R.y + V.y, R.width, R.height};
+    return Result;
+}
+inline rect &
+operator+=(rect &R, v2 V)
+{
+    R = R + V;
+    return R;
+}
+
+inline rect
 operator*(rect R, f32 Scalar)
 {
     rect Result = R;

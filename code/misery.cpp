@@ -36,7 +36,10 @@ DrawLayer(layer *Layer)
     {
         case LayerType_Bitmap:
         {
-            DrawTexture(Layer->Texture, Layer->Position.x, Layer->Position.y, Layer->ModColor);
+            int XFlip = (!Layer->FlippedX) * 2 - 1;
+            int YFlip = (!Layer->FlippedY) * 2 - 1;
+            rect SourceRect = Rect(0, 0, XFlip * Layer->Texture.width, YFlip * Layer->Texture.height);
+            DrawTexturePro(Layer->Texture, SourceRect, Layer->Rect, V2(0, 0), 0, Layer->ModColor);
         }
         break;
     }
@@ -91,30 +94,16 @@ GetDocumentRect(document *Document, rect *View)
 }
 
 rect
-GetLayerRect(layer *Layer)
-{
-    switch(Layer->Type)
-    {
-        case LayerType_Bitmap:
-        {
-            return Rect(Layer->Position.x, Layer->Position.y, Layer->Texture.width, Layer->Texture.height);
-        }
-        break;
-    }
-    return Rect(0,0,0,0);
-}
-
-rect
 GetLayerScreenRect(layer *Layer, document *Document, rect *View)
 {
     rect DocRect = GetDocumentRect(Document, View);
-    rect LayerRect = GetLayerRect(Layer);
+    //rect LayerRect = GetLayerRect(Layer);
     f32 ViewDocRatio = View->height / Document->h;
     
-    f32 x = DocRect.x + (LayerRect.x * Document->Scale * ViewDocRatio);
-    f32 y = DocRect.y + (LayerRect.y * Document->Scale * ViewDocRatio);
-    f32 w = LayerRect.width * (Document->Scale * ViewDocRatio);
-    f32 h = LayerRect.height * (Document->Scale * ViewDocRatio);
+    f32 x = DocRect.x + (Layer->Rect.x * Document->Scale * ViewDocRatio);
+    f32 y = DocRect.y + (Layer->Rect.y * Document->Scale * ViewDocRatio);
+    f32 w = Layer->Rect.width * (Document->Scale * ViewDocRatio);
+    f32 h = Layer->Rect.height * (Document->Scale * ViewDocRatio);
     
     return Rect(x, y, w, h);
 }
@@ -203,7 +192,7 @@ ProcessTool(program_state *ProgramState)
                 
                 if(ToolState->BeingUsed)
                 {
-                    ToolState->InitialPosition = CurrentLayer->Position;
+                    ToolState->InitialPosition = V2(CurrentLayer->Rect.x, CurrentLayer->Rect.y);
                 }
             }
         }
@@ -211,11 +200,10 @@ ProcessTool(program_state *ProgramState)
         {
             if(ToolState->DraggingX || ToolState->DraggingY || ToolState->DraggingBoth)
             {
-                // TODO(cheryl): append action
                 action Action;
                 Action.Type = Action_Translate;
                 Action.InitialPosition = ToolState->InitialPosition;
-                Action.FinalPosition = CurrentLayer->Position;
+                Action.FinalPosition = V2(CurrentLayer->Rect.x, CurrentLayer->Rect.y);
                 Action.LayerIndex = CurrentDocument->CurrentLayerIndex;
                 AddAction(ProgramState, Action);
             }
@@ -230,20 +218,211 @@ ProcessTool(program_state *ProgramState)
         
         if(ToolState->DraggingBoth)
         {
-            CurrentLayer->Position += dPosition * Scalar;
+            CurrentLayer->Rect += dPosition * Scalar;
         }
         else if(ToolState->DraggingX)
         {
-            CurrentLayer->Position.x += dPosition.x * Scalar;
+            CurrentLayer->Rect.x += dPosition.x * Scalar;
         }
         else if(ToolState->DraggingY)
         {
-            CurrentLayer->Position.y += dPosition.y * Scalar;
+            CurrentLayer->Rect.y += dPosition.y * Scalar;
         }
     }
     else if(ProgramState->Tool == Tool_Transform)
     {
+        b32 DraggingAnyTransformControl = ToolState->Dragging[0] || ToolState->Dragging[1] || ToolState->Dragging[2] || ToolState->Dragging[3] || ToolState->Dragging[4] || ToolState->Dragging[5] || ToolState->Dragging[6] || ToolState->Dragging[7] || ToolState->Dragging[8];
+        
+        if(IsMouseButtonDown(0))
+        {
+            if(!DraggingAnyTransformControl)
+            {
+                for(int i = 0; i < 9; i++)
+                {
+                    ToolState->Dragging[i] = false;
+                }
+                
+                for(int i = 0; i < 9; i++)
+                {
+                    if(CheckCollisionPointRec(MousePosition, ProgramState->TransformToolRects[i]))
+                    {
+                        ToolState->Dragging[i] = true;
+                    }
+                }
+                // TODO(Cheryl): set initial state
+            }
+        }
+        else
+        {
+            if(DraggingAnyTransformControl)
+            {
+                // TODO(cheryl): append action
+            }
+            for(int i = 0; i < 9; i++)
+            {
+                ToolState->Dragging[i] = false;
+            }
+        }
+        
+        DraggingAnyTransformControl = ToolState->Dragging[0] || ToolState->Dragging[1] || ToolState->Dragging[2] || ToolState->Dragging[3] || ToolState->Dragging[4] || ToolState->Dragging[5] || ToolState->Dragging[6] || ToolState->Dragging[7] || ToolState->Dragging[9];
+        
+        f32 ViewDocRatio = CurrentDocument->h / View->height / CurrentDocument->Scale;
+        f32 Scalar = ViewDocRatio;
+        v2 dPosition = GetMouseDelta();
+        v2 dPosScaled = dPosition * Scalar;
+        
+        rect NewRect = CurrentLayer->Rect;
+        
+        if(ToolState->DraggingRight)
+        {
+            NewRect.width += dPosScaled.x;
+        }
+        else if(ToolState->DraggingLeft)
+        {
+            NewRect.x += dPosScaled.x;
+            NewRect.width -= dPosScaled.x;
+        }
+        else if(ToolState->DraggingBottom)
+        {
+            NewRect.height += dPosScaled.y;
+        }
+        else if(ToolState->DraggingTop)
+        {
+            NewRect.y += dPosScaled.y;
+            NewRect.height -= dPosScaled.y;
+        }
+        else if(ToolState->DraggingTopLeft)
+        {
+            NewRect.x += dPosScaled.x;
+            NewRect.width -= dPosScaled.x;
+            NewRect.y += dPosScaled.y;
+            NewRect.height -= dPosScaled.y;
+        }
+        else if(ToolState->DraggingTopRight)
+        {
+            NewRect.width += dPosScaled.x;
+            NewRect.y += dPosScaled.y;
+            NewRect.height -= dPosScaled.y;
+        }
+        else if(ToolState->DraggingBottomLeft)
+        {
+            NewRect.height += dPosScaled.y;
+            NewRect.x += dPosScaled.x;
+            NewRect.width -= dPosScaled.x;
+        }
+        else if(ToolState->DraggingBottomRight)
+        {
+            NewRect.height += dPosScaled.y;
+            NewRect.width += dPosScaled.x;
+        }
+        else if(ToolState->DraggingWhole)
+        {
+            NewRect.x += dPosScaled.x;
+            NewRect.y += dPosScaled.y;
+        }
+        
+        CurrentLayer->Rect = NewRect;
     }
+    
+    rect *Rect = &CurrentLayer->Rect;
+    // TODO(cheryl): flip image
+    if(Rect->width < 0)
+    {
+        //TODO(cheryl): check for tool == transform
+        
+        // adjust rect
+        rect NewRect = *Rect;
+        NewRect.x = Rect->x + Rect->width;
+        NewRect.width = -Rect->width;
+        *Rect = NewRect;
+        
+        // Flip if bitmap
+        if(CurrentLayer->Type == LayerType_Bitmap)
+        {
+            CurrentLayer->FlippedX = !CurrentLayer->FlippedX;
+        }
+        
+        // Flip tool point horizontally
+        if(ToolState->DraggingLeft)
+        {
+            ToolState->DraggingLeft = false;
+            ToolState->DraggingRight = true;
+        }
+        else if(ToolState->DraggingTopLeft)
+        {
+            ToolState->DraggingTopLeft = false;
+            ToolState->DraggingTopRight = true;
+        }
+        else if(ToolState->DraggingBottomLeft)
+        {
+            ToolState->DraggingBottomLeft = false;
+            ToolState->DraggingBottomRight = true;
+        }
+        else if(ToolState->DraggingRight)
+        {
+            ToolState->DraggingRight = false;
+            ToolState->DraggingLeft = true;
+        }
+        else if(ToolState->DraggingTopRight)
+        {
+            ToolState->DraggingTopRight = false;
+            ToolState->DraggingTopLeft = true;
+        }
+        else if(ToolState->DraggingBottomRight)
+        {
+            ToolState->DraggingBottomRight = false;
+            ToolState->DraggingBottomLeft = true;
+        }
+    }
+    if(Rect->height < 0)
+    {
+        //TODO(cheryl): check for tool == transform
+        
+        // adjust rect
+        rect NewRect = *Rect;
+        NewRect.y = Rect->y + Rect->height;
+        NewRect.height = -Rect->height;
+        *Rect = NewRect;
+        
+        // Flip if bitmap
+        if(CurrentLayer->Type == LayerType_Bitmap)
+        {
+            CurrentLayer->FlippedY = !CurrentLayer->FlippedY;
+        }
+        
+        // Flip tool point horizontally
+        if(ToolState->DraggingTop)
+        {
+            ToolState->DraggingTop = false;
+            ToolState->DraggingBottom = true;
+        }
+        else if(ToolState->DraggingTopLeft)
+        {
+            ToolState->DraggingTopLeft = false;
+            ToolState->DraggingBottomLeft = true;
+        }
+        else if(ToolState->DraggingTopRight)
+        {
+            ToolState->DraggingTopRight = false;
+            ToolState->DraggingBottomRight = true;
+        }
+        else if(ToolState->DraggingBottom)
+        {
+            ToolState->DraggingBottom = false;
+            ToolState->DraggingTop = true;
+        }
+        else if(ToolState->DraggingBottomLeft)
+        {
+            ToolState->DraggingBottomLeft = false;
+            ToolState->DraggingTopLeft = true;
+        }
+        else if(ToolState->DraggingBottomRight)
+        {
+            ToolState->DraggingBottomRight = false;
+            ToolState->DraggingTopRight = true;
+        }
+    }
+    
 }
 
 void
@@ -254,8 +433,9 @@ UndoAction(program_state *ProgramState, action *Action)
     layer *Layer = &CurrentDocument->Layers[Action->LayerIndex];
     if(Action->Type == Action_Translate)
     {
-        printf(" Translate Action: %d to %d\n", Action->InitialPosition, Action->FinalPosition);
-        Layer->Position = Action->InitialPosition;
+        printf("UNDOING: Translate Action: %d to %d\n", Action->InitialPosition, Action->FinalPosition);
+        Layer->Rect.x = Action->InitialPosition.x;
+        Layer->Rect.y = Action->InitialPosition.y;
     }
     
     ProgramState->PrevActionIndex--;
@@ -268,7 +448,9 @@ RedoAction(program_state *ProgramState, action *Action)
     layer *Layer = &CurrentDocument->Layers[Action->LayerIndex];
     if(Action->Type == Action_Translate)
     {
-        Layer->Position = Action->FinalPosition;
+        printf("REDOING: Translate Action: %d to %d\n", Action->InitialPosition, Action->FinalPosition);
+        Layer->Rect.x = Action->FinalPosition.x;
+        Layer->Rect.y = Action->FinalPosition.y;
     }
     
     ProgramState->PrevActionIndex++;
@@ -328,7 +510,6 @@ ExportDocument(document *Document)
     // Flip image
     ImageFlipVertical(&DocumentImage);
     
-    // TODO(cheryl): wait until image is "ready"?
     b32 Result = ExportImage(DocumentImage, "TestDocument.png");
     
     return Result;
@@ -340,9 +521,19 @@ MakeNewLayerFromImage(program_state *ProgramState, Image ImageToUse)
     layer Layer;
     Layer.Type = LayerType_Bitmap;
     Layer.Texture = LoadTextureFromImage(ImageToUse);
+    Layer.FlippedX = false;
+    Layer.FlippedY = false;
     Layer.ModColor = WHITE;
-    Layer.Position = V2(0, 0);
+    Layer.Rect = Rect(0, 0, Layer.Texture.width, Layer.Texture.height);
     ListAdd(&ProgramState->OpenDocuments[0].Layers, Layer);
+}
+
+void
+MakeNewLayerFromPath(program_state *ProgramState, const char *Path)
+{
+    // TODO(cheryl): probably handle urls here
+    Image LayerImage = LoadImage(Path);
+    MakeNewLayerFromImage(ProgramState, LayerImage);
 }
 
 void
@@ -350,7 +541,6 @@ HandleFileDrop(program_state *ProgramState)
 {
     FilePathList Files = LoadDroppedFiles();
     
-    // TODO(cheryl): handle multiple image files
     // TODO(cheryl): once again, handle different image filetypes
     // TODO(cheryl): handle loading from urls
     
@@ -361,15 +551,18 @@ HandleFileDrop(program_state *ProgramState)
     }
     else
     {
-        char *ImagePath = Files.paths[0];
-        Image DroppedImage = LoadImage(ImagePath);
-        
-        if(IsImageReady(DroppedImage))
+        for(int i = 0; i < Files.count; i++)
         {
-            MakeNewLayerFromImage(ProgramState, DroppedImage);
+            char *ImagePath = Files.paths[i];
+            Image DroppedImage = LoadImage(ImagePath);
+            
+            if(IsImageReady(DroppedImage))
+            {
+                MakeNewLayerFromImage(ProgramState, DroppedImage);
+            }
+            
+            UnloadImage(DroppedImage);
         }
-        
-        UnloadImage(DroppedImage);
     }
     
     UnloadDroppedFiles(Files);
@@ -398,18 +591,12 @@ extern "C"
             ProgramState->TranslateToolArrowWidth = 30;
             ProgramState->TranslateToolBoxSize = 30;
             
-            ProgramState->TransformToolBoxSize = 10;
+            ProgramState->TransformToolBoxSize = 20;
             
             ProgramState->OpenDocuments = DocumentList(20);
             ListAdd(&ProgramState->OpenDocuments, NewDocument(1500, 2000));
             
-            layer Layer;
-            Layer.Type = LayerType_Bitmap;
-            Layer.Texture = LoadTexture("../data/test/hopeless.png");
-            Layer.ModColor = WHITE;
-            Layer.Position = V2(0, 0);
-            ListAdd(&ProgramState->OpenDocuments[0].Layers, Layer);
-            ProgramState->CurrentDocumentIndex = 0;
+            MakeNewLayerFromPath(ProgramState, "../data/test/hopeless.png");
             
             View->x = 0;
             View->y = 0;
@@ -466,7 +653,9 @@ extern "C"
                 }
                 int Index = i;
                 if(i > 4)
+                {
                     Index = i-1;
+                }
                 ProgramState->TransformToolRects[Index] = Rect(x - ProgramState->TransformToolBoxSize / 2.0f,
                                                                y - ProgramState->TransformToolBoxSize / 2.0f,
                                                                ProgramState->TransformToolBoxSize,
@@ -474,20 +663,8 @@ extern "C"
                 i++;
             }
         }
-#if 0
-        ProgramState->TransformToolTopLeftRect = Rect(LayerRect.x - TransformToolBoxSize / 2.0f,
-                                                      LayerRect.y - TransformToolBoxSize / 2.0f,
-                                                      TransformToolBoxSize, TransformToolBoxSize);
-        ProgramState->TransformToolTopRect = Rect(LayerRect.x + LayerRect.width / 2.0f - TransformToolBoxSize / 2.0f,
-                                                  LayerRect.y - TransformToolBoxSize / 2.0f,
-                                                  TransformToolBoxSize, TransformToolBoxSize);
-        ProgramState->TransformToolTopRightRect = Rect(LayerRect.x - TransformToolBoxSize / 2.0f,
-                                                       LayerRect.y - TransformToolBoxSize / 2.0f,
-                                                       TransformToolBoxSize, TransformToolBoxSize);
-        ProgramState->TransformToolTopLeftRect = Rect(LayerRect.x - TransformToolBoxSize / 2.0f,
-                                                      LayerRect.y - TransformToolBoxSize / 2.0f,
-                                                      TransformToolBoxSize, TransformToolBoxSize);
-#endif
+        ProgramState->TransformToolWholeRect = GetLayerScreenRect(CurrentLayer, CurrentDocument, View);
+        
         
         if(IsFileDropped())
         {
@@ -621,7 +798,10 @@ extern "C"
             {
                 for(int i = 0; i < 8; i++)
                 {
-                    DrawRectangleLinesEx(ProgramState->TransformToolRects[i], 5, BLUE);
+                    Color RectColor = BLUE;
+                    if(ToolState->Dragging[i])
+                        RectColor = YELLOW;
+                    DrawRectangleLinesEx(ProgramState->TransformToolRects[i], 5, RectColor);
                 }
             }
             
@@ -670,7 +850,7 @@ extern "C"
                     CurrentLayer->ModColor.b = 255;
                     
                     
-                    ImGui::DragFloat2("Position", (f32 *)(&CurrentLayer->Position));
+                    ImGui::DragFloat2("Position", (f32 *)(&CurrentLayer->Rect));
                     
                     if(ImGui::BeginListBox(""))
                     {
