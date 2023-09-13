@@ -6,8 +6,10 @@
 
 #include "misery_base.h"
 #include "misery_math.h"
+#include "misery_string.h"
 #include "misery.h"
 #include "misery_lists.h"
+#include "misery_logging.h"
 
 #define IsAnyShiftKeyDown (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) 
 
@@ -767,6 +769,8 @@ extern "C"
             SetupView(ProgramState);
         }
         
+        Print(String("Hello! %d", 5));
+        
         ProgramState->dTime = GetFrameTime();
         document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
         layer *CurrentLayer = &CurrentDocument->Layers[CurrentDocument->CurrentLayerIndex];
@@ -930,6 +934,7 @@ extern "C"
                 f32 OuterRadius = ProgramState->RotateToolRadius + ProgramState->RotateToolThickness / 2.0f;
                 Color ToolColor = BLUE;
                 DrawRing(LayerCenter, InnerRadius, OuterRadius, 0, 360, 1, ToolColor);
+                // TODO(cheryl): cool lines
                 
                 if(ToolState->BeingUsed)
                 {
