@@ -70,6 +70,12 @@ operator+(rect R, v2 V)
     rect Result = {R.x + V.x, R.y + V.y, R.width, R.height};
     return Result;
 }
+inline rect
+operator-(rect R, v2 V)
+{
+    rect Result = {R.x - V.x, R.y - V.y, R.width, R.height};
+    return Result;
+}
 inline rect &
 operator+=(rect &R, v2 V)
 {
