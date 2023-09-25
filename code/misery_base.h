@@ -23,10 +23,15 @@ typedef u64 b64;
 #define Gigabytes(Value) (Megabytes(Value)*1024LL)
 #define Terabytes(Value) (Gigabytes(Value)*1024LL)
 
+#define Assert(X) if(!X) { *0 = 0; }
+
 struct program_memory
 {
     u32 WindowHeight;
     u32 WindowWidth;
+    
+    FILE *LogFile;
+    u64 StartTime;
     
     b32 IsRunning;
     

@@ -40,9 +40,9 @@ AllocString(int Length)
 }
 
 void
-FreeString(string *String)
+FreeString(string String)
 {
-    free(String->Data);
+    free(String.Data);
 }
 
 
@@ -75,10 +75,10 @@ String(int *Contents)
 char StringFormatBuffer[512];
 char StringVarBuffer[128];
 string
-String(const char *Format, ...)
+_String(const char *Format, va_list Args)
 {
-    va_list Args;
-    va_start(Args, Format);
+    //va_list Args;
+    //va_start(Args, Format);
     
     int Index = 0;
     
@@ -137,6 +137,14 @@ String(const char *Format, ...)
     return _String(StringFormatBuffer);
 }
 
+string
+String(const char *Format, ...)
+{
+    va_list Args;
+    va_start(Args, Format);
+    return _String(Format, Args);
+}
+
 void
 Print(string String)
 {
@@ -149,10 +157,34 @@ Print(string String)
 }
 
 void
-Print(const char *Data)
+Print(const char *Format, ...)
 {
-    string Str = _String(Data);
+    va_list Args;
+    va_start(Args, Format);
+    string Str = _String(Format, Args);
     Print(Str);
+    FreeString(Str);
+}
+
+void
+PrintFile(FILE *File, string String)
+{
+    for(int i = 0; i < String.Length; i++)
+    {
+        // NOTE(cheryl): does stdout work on windows?
+        putc(String.Data[i], File);
+    }
+    putc('\n', stdout);
+}
+
+void
+Print(FILE *File, const char *Format, ...)
+{
+    va_list Args;
+    va_start(Args, Format);
+    string Str = _String(Format, Args);
+    PrintFile(File, Str);
+    FreeString(Str);
 }
 
 

@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 #include "raylib.h"
 #include "imgui.h"
@@ -80,13 +81,32 @@ LinuxLoadProgramCode(const char *FileName)
     return Result;
 }
 
+#define Log(Format, ...) if(LogFile) { fprintf(LogFile, "[%ld]   ", time(NULL) - StartTime); fprintf(LogFile, Format "\n", ##__VA_ARGS__); }
+
 int main()
 {
+    // TODO(cheryl): change this to a better location
+    mkdir("./logs", 0755);
+    char LogFileNameBuffer[50];
+    time_t StartTime = time(NULL);
+    tm *DateTime = localtime(&StartTime);
+    sprintf(LogFileNameBuffer, "./logs/misery_log_%d_%d_%d_%d_%d_%d.txt", 
+            DateTime->tm_year, DateTime->tm_mon, DateTime->tm_mday,
+            DateTime->tm_hour, DateTime->tm_min, DateTime->tm_sec);
+    FILE *LogFile = fopen(LogFileNameBuffer, "w");
+    if(!LogFile)
+    {
+        printf("ERROR: Can't create log file!\n");
+    }
+    
+    fprintf(LogFile, "MISERY LOG FILE\n");
+    fprintf(LogFile, "%s\n", asctime(DateTime));
+    fprintf(LogFile, "=============================\n");
+    
     linux_program_code ProgramCode = LinuxLoadProgramCode(SO_FILE_NAME);
     if(!ProgramCode.IsValid)
     {
-        printf("Invalid program code!\n");
-        printf("Exiting\n");
+        Log("Invalid program code - Exiting.");
         return 1;
     }
     
@@ -97,6 +117,8 @@ int main()
     Memory.WindowHeight = 800;
     Memory.WindowWidth = 1400;
     Memory.IsRunning = true;
+    
+    Log("Initialized memory");
     
     InitWindow(Memory.WindowWidth, Memory.WindowHeight, "Misery");
     SetWindowState(FLAG_WINDOW_RESIZABLE);
@@ -109,12 +131,19 @@ int main()
         time_t SOLastWriteTime = LinuxGetFileLastWriteTime(SO_FILE_NAME);
         if(SOLastWriteTime != ProgramCode.LastWriteTime)
         {
-            printf("Unloading program code...\n");
+            Log("Unloading program code...");
             LinuxUnloadProgramCode(&ProgramCode);
             sleep(1);
-            printf("Reloading %s...\n", SO_FILE_NAME);
+            Log("Reloading program code from \"%s\"", SO_FILE_NAME);
             ProgramCode = LinuxLoadProgramCode(SO_FILE_NAME);
-            printf("Done Reloading.\n\n");
+            if(ProgramCode.IsValid)
+            {
+                Log("Program code reloaded.\n");
+            }
+            else
+            {
+                Log("[ERROR] Failed to reload program code");
+            }
         }
 #endif
 #if 0
@@ -143,7 +172,7 @@ int main()
         }
         else
         {
-            printf("UpdateAndRender is NULL!\n");
+            Log("UpdateAndRender is NULL!");
             //BeginDrawing();
             //ClearBackground(WHITE);
             //EndDrawing();
@@ -151,4 +180,6 @@ int main()
     }
     
     rlImGuiShutdown();
+    
+    return 0;
 }

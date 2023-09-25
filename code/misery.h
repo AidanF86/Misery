@@ -3,6 +3,8 @@
 #ifndef MISERY_H
 #define MISERY_H
 
+#define IsAnyShiftKeyDown (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) 
+
 struct layer_position
 {
     i32 x, y;
@@ -72,7 +74,7 @@ typedef struct document_list
     inline const document& operator[](size_t Index) const { return Data[Index]; }
 } document_list;
 
-enum tool
+enum tool_type
 {
     Tool_Translate,
     Tool_Rotate,
@@ -90,6 +92,7 @@ const char *ToolStrings[] = {
 
 struct tool_state
 {
+    tool_type Type;
     b32 BeingUsed;
     union
     {
@@ -186,8 +189,7 @@ struct program_state
     
     rect View;
     
-    tool Tool;
-    tool_state ToolState;
+    tool_state Tool;
     
     action_list ActionStack;
     int PrevActionIndex;
