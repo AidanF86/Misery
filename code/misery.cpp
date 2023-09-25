@@ -47,7 +47,7 @@ DrawLayer(layer *Layer)
                            Layer->Rect.height / 2.0f);
             rect DrawRect = Layer->Rect + V2(Layer->Rect.width / 2.0f, Layer->Rect.height / 2.0f);
             
-            DrawTexturePro(Layer->Texture, SourceRect, DrawRect, Origin, Layer->Angle * RAD2DEG, Layer->ModColor);
+            DrawTexturePro(Layer->Texture, SourceRect, DrawRect, Origin, Layer->Rotation * RAD2DEG, Layer->ModColor);
         } break;
         case LayerType_Rectangle:
         {
@@ -110,7 +110,7 @@ extern "C"
     {
         program_state *ProgramState = (program_state *)Memory->Data;
         rect *View = &ProgramState->View;
-        tool_state *Tool = &ProgramState->Tool;
+        tool *Tool = &ProgramState->Tool;
         action_list *ActionStack = &ProgramState->ActionStack;
         
         if(!Memory->Initialized)
@@ -123,14 +123,14 @@ extern "C"
             Tool->Type = Tool_Rotate;
             ProgramState->ShowLayerOutline = true;
             
-            ProgramState->TranslateToolArrowLength = 100;
-            ProgramState->TranslateToolArrowWidth = 30;
-            ProgramState->TranslateToolBoxSize = 30;
+            Tool->Translate_ArrowLength = 100;
+            Tool->Translate_ArrowWidth = 30;
+            Tool->Translate_BoxSize = 30;
             
-            ProgramState->TransformToolBoxSize = 20;
+            Tool->Transform_BoxSize = 20;
             
-            ProgramState->RotateToolRadius = 70;
-            ProgramState->RotateToolThickness = 5;
+            Tool->Rotate_Radius = 70;
+            Tool->Rotate_Thickness = 5;
             
             ProgramState->OpenDocuments = DocumentList(20);
             ListAdd(&ProgramState->OpenDocuments, NewDocument(1500, 2000));
@@ -164,9 +164,9 @@ extern "C"
         v2 LayerCenter = V2(LayerRect.x + LayerRect.width / 2.0f,
                             LayerRect.y + LayerRect.height / 2.0f);
         
-        f32 TranslateToolArrowLength = ProgramState->TranslateToolArrowLength;
-        f32 TranslateToolArrowWidth = ProgramState->TranslateToolArrowWidth;
-        f32 TranslateToolBoxSize = ProgramState->TranslateToolBoxSize;
+        f32 Translate_ArrowLength = Tool->Translate_ArrowLength;
+        f32 Translate_ArrowWidth = Tool->Translate_ArrowWidth;
+        f32 Translate_BoxSize = Tool->Translate_BoxSize;
         
         if(IsWindowResized())
         {
@@ -281,44 +281,7 @@ extern "C"
                 DrawRectangleLinesEx(LayerRect, 5, PURPLE);
             }
             
-            if(Tool->Type == Tool_Translate)
-            {
-                Color XColor = BLUE;
-                Color YColor = BLUE;
-                Color BoxColor = BLUE;
-                if(Tool->Translate_DraggingX)
-                    XColor = YELLOW;
-                if(Tool->Translate_DraggingY)
-                    YColor = YELLOW;
-                if(Tool->Translate_DraggingBoth)
-                    BoxColor = YELLOW;
-                DrawRectangleLinesEx(ProgramState->TranslateToolXArrowRect, 5, XColor);
-                DrawRectangleLinesEx(ProgramState->TranslateToolYArrowRect, 5, YColor);
-                DrawRectangleLinesEx(ProgramState->TranslateToolBoxRect, 5, BoxColor);
-            }
-            else if(Tool->Type == Tool_Transform)
-            {
-                for(int i = 0; i < 8; i++)
-                {
-                    Color RectColor = BLUE;
-                    if(Tool->Transform_Dragging[i])
-                        RectColor = YELLOW;
-                    DrawRectangleLinesEx(ProgramState->TransformToolRects[i], 5, RectColor);
-                }
-            }
-            else if(Tool->Type == Tool_Rotate)
-            {
-                f32 InnerRadius = ProgramState->RotateToolRadius - ProgramState->RotateToolThickness / 2.0f;
-                f32 OuterRadius = ProgramState->RotateToolRadius + ProgramState->RotateToolThickness / 2.0f;
-                Color ToolColor = BLUE;
-                DrawRing(LayerCenter, InnerRadius, OuterRadius, 0, 360, 1, ToolColor);
-                // TODO(cheryl): cool lines
-                
-                if(Tool->BeingUsed)
-                {
-                    DrawRingLines(LayerCenter, 0, OuterRadius, Tool->Rotation_InitialAngle, Tool->Rotation_Angle, 1, ToolColor);
-                }
-            }
+            DrawTool(ProgramState);
             
             rlImGuiBegin();
             {

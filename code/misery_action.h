@@ -21,7 +21,7 @@ UndoAction(program_state *ProgramState, action *Action)
     else if(Action->Type == Action_Rotate)
     {
         printf("UNDOING ROTATE\n");
-        Layer->Angle = Action->InitialAngle;
+        Layer->Rotation = Action->InitialAngle;
     }
     
     ProgramState->PrevActionIndex--;
@@ -41,7 +41,7 @@ RedoAction(program_state *ProgramState, action *Action)
     else if(Action->Type == Action_Rotate)
     {
         printf("REDOING ROTATE\n");
-        Layer->Angle = Action->FinalAngle;
+        Layer->Rotation = Action->FinalAngle;
     }
     
     ProgramState->PrevActionIndex++;
