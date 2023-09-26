@@ -117,6 +117,12 @@ _String(const char *Format, va_list Args)
                         v2 Var = va_arg(Args, v2);
                         sprintf(StringVarBuffer, "(%.3f, %.3f)", Var.x, Var.y);
                     }break;
+                    case 'r':
+                    {
+                        rect Var = va_arg(Args, rect);
+                        sprintf(StringVarBuffer, "(%.3f, %.3f, %.3f, %.3f)",
+                                Var.x, Var.y, Var.width, Var.height);
+                    }
                 }
                 
                 strcpy(&(StringFormatBuffer[Index]), StringVarBuffer);

@@ -3,6 +3,19 @@
 #ifndef MISERY_LAYER_H
 #define MISERY_LAYER_H
 
+trans
+GetLayerScreenTrans(layer *Layer, document *Document, rect *View)
+{
+    rect DocRect = GetDocumentRect(Document, View);
+    //rect LayerRect = GetLayerRect(Layer);
+    f32 ViewDocRatio = View->height / Document->h;
+    
+    v2 Pos = V2(DocRect.x, DocRect.y) + (Layer->Pos * Document->Scale * ViewDocRatio);
+    v2 Dim = Layer->Dim * (Document->Scale * ViewDocRatio);
+    
+    return Trans(Pos, Dim, Layer->Rotation);
+}
+
 void
 MakeNewLayerFromImage(program_state *ProgramState, Image ImageToUse)
 {
@@ -12,7 +25,8 @@ MakeNewLayerFromImage(program_state *ProgramState, Image ImageToUse)
     Layer.FlippedX = false;
     Layer.FlippedY = false;
     Layer.ModColor = WHITE;
-    Layer.Rect = Rect(0, 0, Layer.Texture.width, Layer.Texture.height);
+    Layer.Trans = Trans(Layer.Texture.width / 2, Layer.Texture.height / 2,
+                        Layer.Texture.width, Layer.Texture.height, 0);
     ListAdd(&ProgramState->OpenDocuments[0].Layers, Layer);
 }
 
@@ -22,7 +36,7 @@ MakeNewRectLayer(program_state *ProgramState)
     layer Layer;
     Layer.Type = LayerType_Rectangle;
     // TODO(cheryl): put this in the middle and scale based on canvas size
-    Layer.Rect = Rect(0, 0, 100, 100);
+    Layer.Trans = Trans(50, 50, 100, 100, 0);
     // TODO(cheryl): determines on how we handle the ui for layer color
     Layer.ModColor = RED;
     ListAdd(&ProgramState->OpenDocuments[0].Layers, Layer);

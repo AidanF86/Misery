@@ -3,125 +3,78 @@
 #ifndef MISERY_TOOL_H
 #define MISERY_TOOL_H
 
-
-
 void
-FlipImageIfNecessary(layer *Layer, tool *Tool)
+FlipImageIfNecessary(program_state *ProgramState, layer *Layer)
 {
-    rect *Rect = &Layer->Rect;
-    
-    if(Rect->width < 0)
-    {
-        //TODO(cheryl): check for tool == transform
-        
-        // adjust rect
-        rect NewRect = *Rect;
-        NewRect.x = Rect->x + Rect->width;
-        NewRect.width = -Rect->width;
-        *Rect = NewRect;
-        
-        // Flip if bitmap
-        if(Layer->Type == LayerType_Bitmap)
-        {
-            Layer->FlippedX = !Layer->FlippedX;
-        }
-        
-        // Flip tool point horizontally
-        if(Tool->Transform_DraggingLeft)
-        {
-            Tool->Transform_DraggingLeft = false;
-            Tool->Transform_DraggingRight = true;
-        }
-        else if(Tool->Transform_DraggingTopLeft)
-        {
-            Tool->Transform_DraggingTopLeft = false;
-            Tool->Transform_DraggingTopRight = true;
-        }
-        else if(Tool->Transform_DraggingBottomLeft)
-        {
-            Tool->Transform_DraggingBottomLeft = false;
-            Tool->Transform_DraggingBottomRight = true;
-        }
-        else if(Tool->Transform_DraggingRight)
-        {
-            Tool->Transform_DraggingRight = false;
-            Tool->Transform_DraggingLeft = true;
-        }
-        else if(Tool->Transform_DraggingTopRight)
-        {
-            Tool->Transform_DraggingTopRight = false;
-            Tool->Transform_DraggingTopLeft = true;
-        }
-        else if(Tool->Transform_DraggingBottomRight)
-        {
-            Tool->Transform_DraggingBottomRight = false;
-            Tool->Transform_DraggingBottomLeft = true;
-        }
-    }
-    if(Rect->height < 0)
-    {
-        //TODO(cheryl): check for tool == transform
-        
-        // adjust rect
-        rect NewRect = *Rect;
-        NewRect.y = Rect->y + Rect->height;
-        NewRect.height = -Rect->height;
-        *Rect = NewRect;
-        
-        // Flip if bitmap
-        if(Layer->Type == LayerType_Bitmap)
-        {
-            Layer->FlippedY = !Layer->FlippedY;
-        }
-        
-        // Flip tool point horizontally
-        if(Tool->Transform_DraggingTop)
-        {
-            Tool->Transform_DraggingTop = false;
-            Tool->Transform_DraggingBottom = true;
-        }
-        else if(Tool->Transform_DraggingTopLeft)
-        {
-            Tool->Transform_DraggingTopLeft = false;
-            Tool->Transform_DraggingBottomLeft = true;
-        }
-        else if(Tool->Transform_DraggingTopRight)
-        {
-            Tool->Transform_DraggingTopRight = false;
-            Tool->Transform_DraggingBottomRight = true;
-        }
-        else if(Tool->Transform_DraggingBottom)
-        {
-            Tool->Transform_DraggingBottom = false;
-            Tool->Transform_DraggingTop = true;
-        }
-        else if(Tool->Transform_DraggingBottomLeft)
-        {
-            Tool->Transform_DraggingBottomLeft = false;
-            Tool->Transform_DraggingTopLeft = true;
-        }
-        else if(Tool->Transform_DraggingBottomRight)
-        {
-            Tool->Transform_DraggingBottomRight = false;
-            Tool->Transform_DraggingTopRight = true;
-        }
-    }
+    // TODO(cheryl): REIMPLEMENT
 }
 
 
+b32
+PointInGrabPoint(v2 Pos, grab_point *GrabPoint, f32 Rotation)
+{
+    // TODO(cheryl): this might be inefficient
+    f32 RadRotation = Rotation*DEG2RAD;
+    v2 Vertices[4];
+    Vertices[0] = GrabPoint->Pos + Vector2Rotate(V2(-GrabPoint->w/2, -GrabPoint->h/2), RadRotation);
+    Vertices[1] = GrabPoint->Pos + Vector2Rotate(V2(GrabPoint->w/2, -GrabPoint->h/2), RadRotation);
+    Vertices[2] = GrabPoint->Pos + Vector2Rotate(V2(GrabPoint->w/2, GrabPoint->h/2), RadRotation);
+    Vertices[3] = GrabPoint->Pos + Vector2Rotate(V2(-GrabPoint->w/2, GrabPoint->h/2), RadRotation);
+    
+    return CheckCollisionPointPoly(Pos, Vertices, 4);
+}
+
+i32
+GetGrabbedPointIndex(grab_point *Points, int Count)
+{
+    for(int i = 0; i < Count; i++)
+    {
+        if(Points[i].IsGrabbed)
+            return i;
+    }
+    return -1;
+}
+
+b32
+AnyGrabPointIsAlreadyGrabbed(grab_point *Points, int Count)
+{
+    return GetGrabbedPointIndex(Points, Count) != -1;
+}
 
 void
 ProcessTool(program_state *ProgramState)
 {
     rect *View = &ProgramState->View;
-    tool *Tool = &ProgramState->Tool;
     document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
-    layer *CurrentLayer = &CurrentDocument->Layers[CurrentDocument->CurrentLayerIndex];
+    layer *Layer = &CurrentDocument->Layers[CurrentDocument->LayerIndex];
     v2 MousePosition = GetMousePosition();
-    rect LayerRect = GetLayerScreenRect(CurrentLayer, CurrentDocument, View);
-    v2 LayerCenter = V2(LayerRect.x + LayerRect.width / 2.0f,
-                        LayerRect.y + LayerRect.height / 2.0f);
+    trans Trans = GetLayerScreenTrans(Layer, CurrentDocument, View);
+    f32 Rotation = Trans.Rotation;
+    transform_tool_data *Data = &ProgramState->TransformToolData;
     
+    if(ProgramState->Tool == Tool_Translate)
+    {
+        if(!AnyGrabPointIsAlreadyGrabbed(Data->Translate_GrabPoints, 3))
+        {// Check for grabbing
+            for(int i = 0; i < 3; i++)
+            {
+                if(PointInGrabPoint(MousePosition, &Data->Translate_GrabPoints[i], Rotation))
+                {
+                    Data->Translate_GrabPoints[i].IsGrabbed = true;
+                    Print("BRUH");
+                }
+            }
+        }
+        else
+        {// Compute dragging
+            // Get grabbed grab point
+            grab_point *Point = &Data->Translate_GrabPoints[GetGrabbedPointIndex(Data->Translate_GrabPoints, 3)];
+            Print("AAA");
+        }
+    }
+    
+    
+#if 0
     if(Tool->Type == Tool_Translate)
     {
         if(IsMouseButtonDown(0))
@@ -144,7 +97,7 @@ ProcessTool(program_state *ProgramState)
                 
                 if(Tool->BeingUsed)
                 {
-                    Tool->Translate_InitialPosition = V2(CurrentLayer->Rect.x, CurrentLayer->Rect.y);
+                    Tool->Translate_InitialPosition = V2(Layer->Rect.x, Layer->Rect.y);
                 }
             }
             
@@ -154,15 +107,15 @@ ProcessTool(program_state *ProgramState)
             
             if(Tool->Translate_DraggingBoth)
             {
-                CurrentLayer->Rect += dPosition * Scalar;
+                Layer->Rect += dPosition * Scalar;
             }
             else if(Tool->Translate_DraggingX)
             {
-                CurrentLayer->Rect.x += dPosition.x * Scalar;
+                Layer->Rect.x += dPosition.x * Scalar;
             }
             else if(Tool->Translate_DraggingY)
             {
-                CurrentLayer->Rect.y += dPosition.y * Scalar;
+                Layer->Rect.y += dPosition.y * Scalar;
             }
         }
         else
@@ -172,8 +125,8 @@ ProcessTool(program_state *ProgramState)
                 action Action;
                 Action.Type = Action_Translate;
                 Action.Translate_InitialPosition = Tool->Translate_InitialPosition;
-                Action.FinalPosition = V2(CurrentLayer->Rect.x, CurrentLayer->Rect.y);
-                Action.LayerIndex = CurrentDocument->CurrentLayerIndex;
+                Action.FinalPosition = V2(Layer->Rect.x, Layer->Rect.y);
+                Action.LayerIndex = CurrentDocument->LayerIndex;
                 AddAction(ProgramState, Action);
             }
             Tool->Translate_DraggingBoth = false;
@@ -211,7 +164,7 @@ ProcessTool(program_state *ProgramState)
             v2 dPosition = GetMouseDelta();
             v2 dPosScaled = dPosition * Scalar;
             
-            rect NewRect = CurrentLayer->Rect;
+            rect NewRect = Layer->Rect;
             
             if(Tool->Transform_DraggingRight)
             {
@@ -261,7 +214,7 @@ ProcessTool(program_state *ProgramState)
                 NewRect.y += dPosScaled.y;
             }
             
-            CurrentLayer->Rect = NewRect;
+            Layer->Rect = NewRect;
         }
         else
         {
@@ -293,10 +246,10 @@ ProcessTool(program_state *ProgramState)
                 {
                     // start dragging
                     Tool->Rotation_Dragging = true;
-                    Tool->Rotation_InitialAngle = CurrentLayer->Rotation;
+                    Tool->Rotation_InitialAngle = Layer->Rotation;
                     
                     v2 UpVector = V2(0, 1);
-                    rect LayerScreenRect = GetLayerScreenRect(CurrentLayer, CurrentDocument, View);
+                    rect LayerScreenRect = GetLayerScreenRect(Layer, CurrentDocument, View);
                     v2 LayerScreenCenter = V2(LayerScreenRect.x + LayerScreenRect.width / 2.0f,
                                               LayerScreenRect.y + LayerScreenRect.height / 2.0f);
                     v2 MouseVector = MousePosition - LayerScreenCenter;
@@ -307,7 +260,7 @@ ProcessTool(program_state *ProgramState)
             else
             {
                 v2 UpVector = V2(0, 1);
-                rect LayerScreenRect = GetLayerScreenRect(CurrentLayer, CurrentDocument, View);
+                rect LayerScreenRect = GetLayerScreenRect(Layer, CurrentDocument, View);
                 v2 LayerScreenCenter = V2(LayerScreenRect.x + LayerScreenRect.width / 2.0f,
                                           LayerScreenRect.y + LayerScreenRect.height / 2.0f);
                 v2 MouseVector = MousePosition - LayerScreenCenter;
@@ -319,7 +272,7 @@ ProcessTool(program_state *ProgramState)
                 printf("%f, ", dAngle);
                 printf("%f\n", NewAngle);
                 
-                CurrentLayer->Rotation = NewAngle;
+                Layer->Rotation = NewAngle;
             }
         }
         else if(Tool->Rotation_Dragging)
@@ -329,130 +282,148 @@ ProcessTool(program_state *ProgramState)
                 action Action;
                 Action.Type = Action_Rotate;
                 Action.InitialAngle = Tool->Rotation_InitialAngle;
-                Action.FinalAngle = CurrentLayer->Rotation;
-                Action.LayerIndex = CurrentDocument->CurrentLayerIndex;
+                Action.FinalAngle = Layer->Rotation;
+                Action.LayerIndex = CurrentDocument->LayerIndex;
                 AddAction(ProgramState, Action);
             }
             Tool->Rotation_Dragging = false;
         }
     }
     
-    FlipImageIfNecessary(CurrentLayer, Tool);
+    FlipImageIfNecessary(Layer, Tool);
+#endif
 }
 
 
+void
+InitializeTransformToolData(program_state *ProgramState)
+{
+    transform_tool_data *Data = &ProgramState->TransformToolData;
+    for(int i = 0; i < sizeof(*Data) / sizeof(grab_point); i++)
+    {
+        // TODO(cheryl): check this number
+        Data->GrabPoints[i] = {0};
+    }
+    Data->XArrow.MoveX = true;
+    Data->YArrow.MoveY = true;
+    Data->BothBox.MoveX = true;
+    Data->BothBox.MoveY = true;
+    
+    Data->GrabCircle.Rotate = true;
+    
+    Data->LeftScalar.ScaleLeft = true;
+    Data->RightScalar.ScaleRight = true;
+    Data->TopScalar.ScaleTop = true;
+    Data->BottomScalar.ScaleBottom = true;
+    
+    Data->TopLeft.ScaleTop = true;
+    Data->TopLeft.ScaleLeft = true;
+    Data->Top.ScaleTop = true;
+    Data->TopRight.ScaleTop = true;
+    Data->TopRight.ScaleRight = true;
+    Data->Left.ScaleLeft = true;
+    Data->Right.ScaleRight = true;
+    Data->BottomLeft.ScaleBottom = true;
+    Data->BottomLeft.ScaleLeft = true;
+    Data->Bottom.ScaleBottom = true;
+    Data->BottomRight.ScaleBottom = true;
+    Data->BottomRight.ScaleRight = true;
+    Data->WholeLayer.MoveX = true;
+    Data->WholeLayer.MoveY = true;
+    Data->TopLeftRotate.Rotate = true;
+    Data->TopRightRotate.Rotate = true;
+    Data->BottomLeftRotate.Rotate = true;
+    Data->BottomRightRotate.Rotate = true;
+}
 
 void
-UpdateToolRects(program_state *ProgramState)
+UpdateTransformToolGeometry(program_state *ProgramState)
 {
     // TODO(cheryl): Account for rotation (this is a big task).
-    tool *Tool = &ProgramState->Tool;
     rect *View = &ProgramState->View;
-    document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
-    layer *CurrentLayer = &CurrentDocument->Layers[CurrentDocument->CurrentLayerIndex];
+    document *Document = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
+    layer *Layer = &Document->Layers[Document->LayerIndex];
+    trans Trans = GetLayerScreenTrans(Layer, Document, View);
     
-    f32 Translate_ArrowLength = Tool->Translate_ArrowLength;
-    f32 Translate_ArrowWidth = Tool->Translate_ArrowWidth;
-    f32 Translate_BoxSize = Tool->Translate_BoxSize;
+    transform_tool_data *Data = &ProgramState->TransformToolData;
     
-    rect LayerRect = GetLayerScreenRect(CurrentLayer, CurrentDocument, View);
-    v2 LayerCenter = V2(LayerRect.x + LayerRect.width / 2.0f,
-                        LayerRect.y + LayerRect.height / 2.0f);
+    // Copy values
+    f32 TranslateTool_ArrowLength = ProgramState->TranslateTool_ArrowLength;
+    f32 TranslateTool_ArrowWidth = ProgramState->TranslateTool_ArrowWidth;
+    f32 TranslateTool_BoxSize = ProgramState->TranslateTool_BoxSize;
     
-    Tool->Translate_XArrowRect = Rect(LayerCenter.x, 
-                                      LayerCenter.y - Translate_ArrowWidth / 2.0f,
-                                      Translate_ArrowLength,
-                                      Translate_ArrowWidth);
-    Tool->Translate_YArrowRect = Rect(LayerCenter.x - Translate_ArrowWidth / 2.0f, 
-                                      LayerCenter.y,
-                                      Translate_ArrowWidth,
-                                      Translate_ArrowLength);
-    Tool->Translate_BoxRect = Rect(LayerCenter.x, LayerCenter.y,
-                                   Translate_BoxSize, Translate_BoxSize);
+    f32 TransformTool_BoxSize = ProgramState->TransformTool_BoxSize;
     
-    int i = 0;
-    for(f32 y = LayerRect.y; y <= LayerRect.y + LayerRect.height + 1; y += LayerRect.height / 2.0f)
-    {
-        for(f32 x = LayerRect.x; x <= LayerRect.x + LayerRect.width + 1; x += LayerRect.width / 2.0f)
-        {
-            if(i == 4)
-            {
-                i++;
-                continue;
-            }
-            int Index = i;
-            if(i > 4)
-            {
-                Index = i-1;
-            }
-            Tool->Transform_Rects[Index] = Rect(x - Tool->Transform_BoxSize / 2.0f,
-                                                y - Tool->Transform_BoxSize / 2.0f,
-                                                Tool->Transform_BoxSize,
-                                                Tool->Transform_BoxSize);
-            i++;
-        }
-    }
-    Tool->Transform_WholeRect = GetLayerScreenRect(CurrentLayer, CurrentDocument, View);
+    f32 RotateTool_Radius = ProgramState->RotateTool_Radius;
+    f32 RotateTool_Thickness = ProgramState->RotateTool_Thickness;
     
+    v2 Pos = Trans.Pos;
+    f32 x = Pos.x;
+    f32 y = Pos.y;
+    v2 Dim = Trans.Dim;
+    f32 w = Dim.x;
+    f32 h = Dim.y;
+    f32 Rotation = Trans.Rotation;
+    f32 RadRotation = Rotation*DEG2RAD;
+    
+    // Useful Positions
+    v2 TopLeft = Pos + Vector2Rotate(V2(-w/2, -h/2), RadRotation);
+    v2 TopRight = Pos + Vector2Rotate(V2(w/2, -h/2), RadRotation);
+    v2 BottomRight = Pos + Vector2Rotate(V2(w/2, h/2), RadRotation);
+    v2 BottomLeft = Pos + Vector2Rotate(V2(-w/2, h/2), RadRotation);
+    
+    v2 Top = Pos + Vector2Rotate(V2(0, -h/2), RadRotation);
+    v2 Bottom = Pos + Vector2Rotate(V2(0, h/2), RadRotation);
+    v2 Right = Pos + Vector2Rotate(V2(w/2, 0), RadRotation);
+    v2 Left = Pos + Vector2Rotate(V2(-w/2, 0), RadRotation);
+    
+    // TRANSLATE
+    // TODO(cheryl): add option to have local and global transform
+    Data->XArrow.Pos = Pos + Vector2Rotate(V2(TranslateTool_ArrowLength/2, 0), RadRotation);
+    Data->XArrow.Dim = V2(TranslateTool_ArrowLength,
+                          TranslateTool_ArrowWidth);
+    Data->YArrow.Pos = Pos + Vector2Rotate(V2(0, TranslateTool_ArrowLength/2), RadRotation);
+    Data->YArrow.Dim = V2(TranslateTool_ArrowWidth,
+                          TranslateTool_ArrowLength);
+    Data->BothBox.Pos = Pos + Vector2Rotate(V2(TransformTool_BoxSize/2, TransformTool_BoxSize/2), RadRotation);
+    Data->BothBox.Dim = V2(TransformTool_BoxSize, TransformTool_BoxSize);
+    
+    
+    // ROTATE
+    Data->GrabCircle.Pos = Pos;
+    Data->GrabCircle.MinRadius = RotateTool_Radius - RotateTool_Thickness;
+    Data->GrabCircle.MaxRadius = RotateTool_Radius + RotateTool_Thickness;
+    
+    //Data->TopLeft.Pos = Pos  
 }
 
 void
-DrawTransformTool(tool *Tool, rect LayerScreenRect, f32 LayerRotation)
+DrawGrabPointRect(grab_point *Point, f32 Rotation)
 {
-    for(int i = 0; i < 8; i++)
-    {
-        Color RectColor = BLUE;
-        if(Tool->Transform_Dragging[i])
-            RectColor = YELLOW;
-        DrawRectangleLinesEx(Tool->Transform_Rects[i], 5, RectColor);
-    }
+    DrawRectangleLinesPro(Point->Pos, Point->Dim, Rotation, 5, BLUE);
 }
 
 void
 DrawTool(program_state *ProgramState)
 {
-    tool *Tool = &ProgramState->Tool;
     rect *View = &ProgramState->View;
     document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
-    layer *Layer = &CurrentDocument->Layers[CurrentDocument->CurrentLayerIndex];
-    rect LayerRect = GetLayerScreenRect(Layer, CurrentDocument, View);
-    v2 LayerCenter = V2(LayerRect.x + LayerRect.width / 2.0f,
-                        LayerRect.y + LayerRect.height / 2.0f);
+    layer *Layer = &CurrentDocument->Layers[CurrentDocument->LayerIndex];
+    trans Trans = GetLayerScreenTrans(Layer, CurrentDocument, View);
+    transform_tool_data *Data = &ProgramState->TransformToolData;
     
-    if(Tool->Type == Tool_Translate)
+    f32 Rotation = Trans.Rotation;
+    
+    switch(ProgramState->Tool)
     {
-        Color XColor = BLUE;
-        Color YColor = BLUE;
-        Color BoxColor = BLUE;
-        if(Tool->Translate_DraggingX)
-            XColor = YELLOW;
-        if(Tool->Translate_DraggingY)
-            YColor = YELLOW;
-        if(Tool->Translate_DraggingBoth)
-            BoxColor = YELLOW;
-        DrawRectangleLinesEx(Tool->Translate_XArrowRect, 5, XColor);
-        DrawRectangleLinesEx(Tool->Translate_YArrowRect, 5, YColor);
-        DrawRectangleLinesEx(Tool->Translate_BoxRect, 5, BoxColor);
-    }
-    else if(Tool->Type == Tool_Transform)
-    {
-        DrawTransformTool(Tool, LayerRect, Layer->Rotation);
-    }
-    else if(Tool->Type == Tool_Rotate)
-    {
-        f32 InnerRadius = Tool->Rotate_Radius - Tool->Rotate_Thickness / 2.0f;
-        f32 OuterRadius = Tool->Rotate_Radius + Tool->Rotate_Thickness / 2.0f;
-        Color ToolColor = BLUE;
-        DrawRing(LayerCenter, InnerRadius, OuterRadius, 0, 360, 1, ToolColor);
-        // TODO(cheryl): cool lines
+        case Tool_Translate: {
+            DrawGrabPointRect(&Data->Translate_GrabPoints[0], Rotation);
+            DrawGrabPointRect(&Data->Translate_GrabPoints[1], Rotation);
+            DrawGrabPointRect(&Data->Translate_GrabPoints[2], Rotation);
+            break;
+        };
         
-        if(Tool->BeingUsed)
-        {
-            DrawRingLines(LayerCenter, 0, OuterRadius, Tool->Rotation_InitialAngle, Tool->Rotation_Angle, 1, ToolColor);
-        }
     }
-    
-    
 }
 
 #endif

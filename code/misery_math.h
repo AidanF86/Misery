@@ -5,10 +5,6 @@
 
 #include "math.h"
 
-typedef Vector2 v2;
-typedef Vector3 v3;
-typedef Rectangle rect;
-
 v2 V2(f32 x, f32 y)
 {
     v2 Result = {x,y};
@@ -30,6 +26,12 @@ inline v2
 operator-(v2 A, v2 B)
 {
     return {A.x - B.x, A.y - B.y};
+}
+inline v2 &
+operator-=(v2 &A, v2 B)
+{
+    A = A-B;
+    return A;
 }
 inline v2
 operator*(v2 V, f32 Scalar)
@@ -134,6 +136,53 @@ Rect(f32 x, f32 y, f32 w, f32 h)
     return Result;
 }
 
+inline trans
+operator+(trans T, v2 V)
+{
+    trans Result = T;
+    Result.Pos += V;
+    return Result;
+}
+inline trans
+operator-(trans T, v2 V)
+{
+    trans Result = T;
+    Result.Pos -= V;
+    return Result;
+}
+inline trans &
+operator+=(trans &T, v2 V)
+{
+    T = T + V;
+    return T;
+}
+inline trans &
+operator-=(trans &T, v2 V)
+{
+    T = T - V;
+    return T;
+}
+
+inline trans
+Trans(v2 Pos, v2 Dim, f32 Rotation)
+{
+    trans Result;
+    Result.Pos = Pos;
+    Result.Dim = Dim;
+    Result.Rotation = Rotation;
+    return Result;
+}
+inline trans
+Trans(f32 x, f32 y, f32 w, f32 h, f32 Rotation)
+{
+    trans Result;
+    Result.x = x;
+    Result.y = y;
+    Result.w = w;
+    Result.h = h;
+    Result.Rotation = Rotation;
+    return Result;
+}
 
 bool CheckCollisionCircleRecFloat(Vector2 center, float radius, Rectangle rec)
 {

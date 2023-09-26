@@ -34,19 +34,5 @@ GetDocumentRect(document *Document, rect *View)
     return DestRect;
 }
 
-rect
-GetLayerScreenRect(layer *Layer, document *Document, rect *View)
-{
-    rect DocRect = GetDocumentRect(Document, View);
-    //rect LayerRect = GetLayerRect(Layer);
-    f32 ViewDocRatio = View->height / Document->h;
-    
-    f32 x = DocRect.x + (Layer->Rect.x * Document->Scale * ViewDocRatio);
-    f32 y = DocRect.y + (Layer->Rect.y * Document->Scale * ViewDocRatio);
-    f32 w = Layer->Rect.width * (Document->Scale * ViewDocRatio);
-    f32 h = Layer->Rect.height * (Document->Scale * ViewDocRatio);
-    
-    return Rect(x, y, w, h);
-}
 
 #endif //MISERY_RECTS_H

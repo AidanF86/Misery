@@ -5,14 +5,16 @@
 #include "rlImGui.cpp"
 
 #include "misery_base.h"
+#include "misery_types.h"
 #include "misery_math.h"
 #include "misery_string.h"
 #include "misery_logging.h"
 #include "misery.h"
 #include "misery_lists.h"
+
+#include "misery_rects.h"
 #include "misery_layer.h"
 #include "misery_action.h"
-#include "misery_rects.h"
 #include "misery_tool.h"
 #include "misery_file.h"
 
@@ -24,7 +26,7 @@ document NewDocument(u32 w, u32 h)
     Result.Layers = LayerList();
     Result.Scale = 1;
     Result.Offset = V2(0, 0);
-    Result.CurrentLayerIndex = 0;
+    Result.LayerIndex = 0;
     
     Result.Texture = LoadRenderTexture(w, h);
     
@@ -42,18 +44,27 @@ DrawLayer(layer *Layer)
             int YFlip = (!Layer->FlippedY) * 2 - 1;
             rect SourceRect = Rect(0, 0, XFlip * Layer->Texture.width, YFlip * Layer->Texture.height);
             
-            // Draw Rect adjusted for rotation offset (yeah ik it sucks)
-            v2 Origin = V2(Layer->Rect.width / 2.0f,
-                           Layer->Rect.height / 2.0f);
-            rect DrawRect = Layer->Rect + V2(Layer->Rect.width / 2.0f, Layer->Rect.height / 2.0f);
+            // TODO(cheryl): this doesn't feel right, maybe check later
+            v2 Origin = V2(Layer->w/2, Layer->h/2);
+            rect DrawRect = Rect(Layer->x, Layer->y, Layer->w, Layer->h);
             
-            DrawTexturePro(Layer->Texture, SourceRect, DrawRect, Origin, Layer->Rotation * RAD2DEG, Layer->ModColor);
+            DrawTexturePro(Layer->Texture, SourceRect, DrawRect, Origin, Layer->Rotation, Layer->ModColor);
         } break;
         case LayerType_Rectangle:
         {
-            DrawRectanglePro(Layer->Rect, V2(0, 0), 0, Layer->ModColor);
+            //DrawRectanglePro(Layer->Rect, V2(0, 0), 0, Layer->ModColor);
         } break;
     }
+}
+
+
+void
+DrawLayerOutline(layer *Layer, document *Document, rect *View)
+{
+    trans Trans = GetLayerScreenTrans(Layer, Document, View);
+    
+    DrawRectangleLinesPro(Trans.Pos, Trans.Dim, Trans.Rotation, 5, PURPLE);
+    
 }
 
 void
@@ -110,32 +121,33 @@ extern "C"
     {
         program_state *ProgramState = (program_state *)Memory->Data;
         rect *View = &ProgramState->View;
-        tool *Tool = &ProgramState->Tool;
+        //tool **Tool = &ProgramState->Tool;
         action_list *ActionStack = &ProgramState->ActionStack;
         
         if(!Memory->Initialized)
         {
             Memory->Initialized = true;
             
+            
+            
+            ProgramState->TranslateTool_ArrowLength = 100;
+            ProgramState->TranslateTool_ArrowWidth = 30;
+            ProgramState->TranslateTool_BoxSize = 30;
+            
+            ProgramState->TransformTool_BoxSize = 20;
+            
+            ProgramState->RotateTool_Radius = 70;
+            ProgramState->RotateTool_Thickness = 5;
+            
+            
+            
             ProgramState->ActionStack = ActionList(20);
             ProgramState->PrevActionIndex = 0;
-            
-            Tool->Type = Tool_Rotate;
-            ProgramState->ShowLayerOutline = true;
-            
-            Tool->Translate_ArrowLength = 100;
-            Tool->Translate_ArrowWidth = 30;
-            Tool->Translate_BoxSize = 30;
-            
-            Tool->Transform_BoxSize = 20;
-            
-            Tool->Rotate_Radius = 70;
-            Tool->Rotate_Thickness = 5;
             
             ProgramState->OpenDocuments = DocumentList(20);
             ListAdd(&ProgramState->OpenDocuments, NewDocument(1500, 2000));
             ProgramState->CurrentDocumentIndex = 0;
-            ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex].CurrentLayerIndex = 0;
+            ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex].LayerIndex = 0;
             
             MakeNewLayerFromPath(ProgramState, "../data/test/hopeless.png");
             
@@ -151,7 +163,7 @@ extern "C"
         
         ProgramState->dTime = GetFrameTime();
         document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
-        layer *CurrentLayer = &CurrentDocument->Layers[CurrentDocument->CurrentLayerIndex];
+        layer *Layer = &CurrentDocument->Layers[CurrentDocument->LayerIndex];
         ImGuiIO& IO = ImGui::GetIO();
         ProgramState->CursorInImGui = IO.WantCaptureMouse;
         ProgramState->ScreenWidth = GetScreenWidth();
@@ -159,14 +171,6 @@ extern "C"
         i32 ScreenWidth = ProgramState->ScreenWidth;
         i32 ScreenHeight = ProgramState->ScreenHeight;
         v2 MousePosition = GetMousePosition();
-        
-        rect LayerRect = GetLayerScreenRect(CurrentLayer, CurrentDocument, View);
-        v2 LayerCenter = V2(LayerRect.x + LayerRect.width / 2.0f,
-                            LayerRect.y + LayerRect.height / 2.0f);
-        
-        f32 Translate_ArrowLength = Tool->Translate_ArrowLength;
-        f32 Translate_ArrowWidth = Tool->Translate_ArrowWidth;
-        f32 Translate_BoxSize = Tool->Translate_BoxSize;
         
         if(IsWindowResized())
         {
@@ -218,10 +222,9 @@ extern "C"
             CurrentDocument->Offset += dOffset;
         }
         
-        UpdateToolRects(ProgramState);
+        UpdateTransformToolGeometry(ProgramState);
         ProcessTool(ProgramState);
-        UpdateToolRects(ProgramState);
-        
+        UpdateTransformToolGeometry(ProgramState);
         
         if(IsFileDropped())
         {
@@ -277,8 +280,7 @@ extern "C"
             
             if(ProgramState->ShowLayerOutline)
             {
-                rect LayerRect = GetLayerScreenRect(CurrentLayer, CurrentDocument, &ProgramState->View);
-                DrawRectangleLinesEx(LayerRect, 5, PURPLE);
+                DrawLayerOutline(Layer, CurrentDocument, View);
             }
             
             DrawTool(ProgramState);
@@ -299,8 +301,8 @@ extern "C"
                 
                 if(ImGui::Button("New Bitmap Layer"))
                 {
-                    layer Layer = *CurrentLayer;
-                    ListAdd(&CurrentDocument->Layers, Layer);
+                    layer NewLayer = *Layer;
+                    ListAdd(&CurrentDocument->Layers, NewLayer);
                 }
                 if(ImGui::Button("New Rect Layer"))
                 {
@@ -312,10 +314,11 @@ extern "C"
                 {
                     for(int i = 0; i < ToolCount; i++)
                     {
-                        b32 Selected = ImGui::RadioButton(ToolStrings[i], Tool->Type == i);
+                        
+                        b32 Selected = ImGui::RadioButton(ToolStrings[i], ProgramState->Tool == i);
                         if(Selected)
                         {
-                            Tool->Type = (tool_type)i;
+                            ProgramState->Tool = (tool_type)i;
                         }
                     }
                     ImGui::TreePop();
@@ -324,22 +327,24 @@ extern "C"
                 // LAYERS
                 if(ImGui::TreeNodeEx("Layers", ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen))
                 {
-                    f32 LayerAlpha = ((f32)CurrentLayer->ModColor.a)/255.0f;
+                    f32 LayerAlpha = ((f32)Layer->ModColor.a)/255.0f;
                     ImGui::SliderFloat(" ", &LayerAlpha, 0, 1, "Alpha: %.3f");
-                    CurrentLayer->ModColor.a = (u8)(LayerAlpha*255.0f);
-                    CurrentLayer->ModColor.r = 255;
-                    CurrentLayer->ModColor.g = 255;
-                    CurrentLayer->ModColor.b = 255;
+                    Layer->ModColor.a = (u8)(LayerAlpha*255.0f);
+                    Layer->ModColor.r = 255;
+                    Layer->ModColor.g = 255;
+                    Layer->ModColor.b = 255;
                     
                     
-                    ImGui::DragFloat2("Position", (f32 *)(&CurrentLayer->Rect));
+                    ImGui::DragFloat2("Position", (f32 *)(&Layer->Pos));
+                    ImGui::DragFloat2("Dimensions", (f32 *)(&Layer->Dim));
+                    ImGui::DragFloat("Rotation", &Layer->Rotation);
                     
                     if(ImGui::BeginListBox(""))
                     {
                         for(int i = 0; i < CurrentDocument->Layers.Count; i++)
                         {
                             sprintf(Buffer, "layer %d", i);
-                            b32 Selected = ImGui::Selectable(Buffer, CurrentDocument->CurrentLayerIndex == i);
+                            b32 Selected = ImGui::Selectable(Buffer, CurrentDocument->LayerIndex == i);
                             ImGui::SameLine();
                             b32 ShouldDelete = ImGui::Button("Delete");
                             if(ShouldDelete)
@@ -348,7 +353,7 @@ extern "C"
                             }
                             else if(Selected)
                             {
-                                CurrentDocument->CurrentLayerIndex = i;
+                                CurrentDocument->LayerIndex = i;
                             }
                         }
                         ImGui::EndListBox();

@@ -3,12 +3,15 @@
 #ifndef MISERY_ACTION_H
 #define MISERY_ACTION_H
 
+// TODO(cheryl): BROKEN, FIX
+
 void
 UndoAction(program_state *ProgramState, action *Action)
 {
     printf("Undoing");
     document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
     layer *Layer = &CurrentDocument->Layers[Action->LayerIndex];
+#if 0
     if(Action->Type == Action_Translate)
     {
         // TODO(cheryl): wtf?? %d is useless here
@@ -23,6 +26,7 @@ UndoAction(program_state *ProgramState, action *Action)
         printf("UNDOING ROTATE\n");
         Layer->Rotation = Action->InitialAngle;
     }
+#endif
     
     ProgramState->PrevActionIndex--;
 }
@@ -32,6 +36,7 @@ RedoAction(program_state *ProgramState, action *Action)
 {
     document *CurrentDocument = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
     layer *Layer = &CurrentDocument->Layers[Action->LayerIndex];
+#if 0
     if(Action->Type == Action_Translate)
     {
         printf("REDOING: Translate Action: %d to %d\n", Action->Translate_InitialPosition, Action->FinalPosition);
@@ -43,6 +48,7 @@ RedoAction(program_state *ProgramState, action *Action)
         printf("REDOING ROTATE\n");
         Layer->Rotation = Action->FinalAngle;
     }
+#endif
     
     ProgramState->PrevActionIndex++;
 }

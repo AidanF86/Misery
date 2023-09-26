@@ -5,16 +5,6 @@
 
 #define IsAnyShiftKeyDown (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) 
 
-struct layer_position
-{
-    i32 x, y;
-};
-layer_position LayerPosition(i32 x, i32 y)
-{
-    layer_position Result = {x, y};
-    return Result;
-}
-
 enum layer_type
 {
     LayerType_Text,
@@ -26,8 +16,28 @@ enum layer_type
 struct layer
 {
     Color ModColor;
-    rect Rect;
-    f32 Rotation;
+    
+    union
+    {
+        struct
+        {
+            union {
+                struct {
+                    f32 x, y;
+                };
+                v2 Pos;
+            };
+            union {
+                struct {
+                    f32 w, h;
+                };
+                v2 Dim;
+            };
+            f32 Rotation;
+        };
+        
+        trans Trans;
+    };
     
     layer_type Type;
     union{
@@ -60,7 +70,7 @@ struct document
     
     RenderTexture2D Texture;
     
-    int CurrentLayerIndex;
+    int LayerIndex;
     
     f32 Scale;
     v2 Offset;
@@ -74,121 +84,6 @@ typedef struct document_list
     inline const document& operator[](size_t Index) const { return Data[Index]; }
 } document_list;
 
-struct grab_point
-{
-    v2 Pos;
-    
-    b32 ScaleLeft, ScaleRight, ScaleTop, ScaleBottom, MovesX, MovesY;
-    b32 Rotates;
-};
-
-enum tool_type
-{
-    Tool_Translate,
-    Tool_Rotate,
-    Tool_Scale,
-    Tool_Transform,
-};
-
-#define ToolCount 4
-const char *ToolStrings[] = {
-    "Translate",
-    "Rotate",
-    "Scale",
-    "Transform",
-};
-
-struct tool
-{
-    tool_type Type;
-    b32 BeingUsed;
-    
-    // RECTS
-    struct {
-        // Translate Tool
-        f32 Translate_ArrowLength;
-        f32 Translate_ArrowWidth;
-        f32 Translate_BoxSize;
-        
-        rect Translate_XArrowRect;
-        rect Translate_YArrowRect;
-        rect Translate_BoxRect;
-        
-        // Rotate Tool
-        f32 Rotate_Radius;
-        f32 Rotate_Thickness;
-        
-        // Transform Tool
-        f32 Transform_BoxSize;
-        
-        union
-        {
-            struct
-            {
-                rect Transform_TopLeftRect;
-                rect Transform_TopRect;
-                rect Transform_TopRightRect;
-                rect Transform_LeftRect;
-                rect Transform_RightRect;
-                rect Transform_BottomLeftRect;
-                rect Transform_BottomRect;
-                rect Transform_BottomRightRect;
-                
-                rect Transform_WholeRect;
-                
-                rect Transform_BottomLeftRotate;
-                rect Transform_TopLeftRotate;
-                rect Transform_TopRightRotate;
-                rect Transform_BottomRightRotate;
-            };
-            rect Transform_Rects[9];
-        };
-    };
-    
-    // DRAGGING
-    struct {
-        union
-        {
-            struct
-            {// translate
-                b32 Translate_DraggingX;
-                b32 Translate_DraggingY;
-                b32 Translate_DraggingBoth;
-                
-                v2 Translate_InitialPosition;
-            };
-            struct
-            {// rotate
-                b32 Rotation_Dragging;
-                
-                f32 Rotation_InitialMouseAngle;
-                f32 Rotation_Angle;
-                f32 Rotation_InitialAngle;
-            };
-            struct
-            {// transform
-                union
-                {
-                    struct
-                    {
-                        b32 Transform_DraggingTopLeft;
-                        b32 Transform_DraggingTop;
-                        b32 Transform_DraggingTopRight;
-                        b32 Transform_DraggingLeft;
-                        b32 Transform_DraggingRight;
-                        b32 Transform_DraggingBottomLeft;
-                        b32 Transform_DraggingBottom;
-                        b32 Transform_DraggingBottomRight;
-                        
-                        b32 Transform_DraggingWhole;
-                    };
-                    b32 Transform_Dragging[9];
-                };
-            };
-        };
-    };
-    
-};
 
 enum action_type
 {
@@ -230,7 +125,84 @@ typedef struct action_list
     inline const action& operator[](size_t Index) const { return Data[Index]; }
 } action_list;
 
+struct grab_point
+{
+    b32 IsGrabbed;
+    
+    union {
+        struct {
+            f32 x, y;
+        };
+        v2 Pos; // Center
+    };
+    
+    union{
+        struct {// Rect
+            union {
+                struct{
+                    f32 w, h;
+                };
+                v2 Dim;
+            };
+        };
+        struct {// Circle
+            f32 MinRadius, MaxRadius;
+        };
+    };
+    
+    b32 ScaleLeft, ScaleRight, ScaleTop, ScaleBottom, MoveX, MoveY, Rotate;
+};
 
+enum tool_type
+{
+    Tool_Translate,
+    Tool_Rotate,
+    Tool_Scale,
+    Tool_Transform,
+};
+
+#define ToolCount 4
+const char *ToolStrings[] = {
+    "Translate",
+    "Rotate",
+    "Scale",
+    "Transform",
+};
+
+struct transform_tool_data
+{
+    union {
+        struct {
+            union {
+                struct {// Translate
+                    grab_point XArrow, YArrow, BothBox;
+                };
+                grab_point Translate_GrabPoints[1];
+            };
+            union {
+                struct {// Rotate
+                    grab_point GrabCircle;
+                };
+                grab_point Rotate_GrabPoints[1];
+            };
+            union {
+                struct {// Scale
+                    grab_point LeftScalar, RightScalar, TopScalar, BottomScalar;
+                };
+                grab_point Scale_GrabPoints[1];
+            };
+            union {
+                struct {// Transform
+                    grab_point TopLeft, Top, TopRight, Left, Right, BottomLeft, Bottom, BottomRight;
+                    grab_point WholeLayer;
+                    grab_point TopLeftRotate, TopRightRotate, BottomLeftRotate, BottomRightRotate;
+                };
+                grab_point Transform_GrabPoints[1];
+            };
+        };
+        grab_point GrabPoints[1];
+    };
+};
 
 struct program_state
 {
@@ -244,21 +216,43 @@ struct program_state
     
     rect View;
     
-    tool Tool;
-    
     action_list ActionStack;
     int PrevActionIndex;
     
     struct { // Options
-        // Changable
-        b32 ShowLayerOutline;
+        // CHANGABLE
+        b32 ShowLayerOutline = true;
         
-        // Unchangeable
+        // UNCHANGABLE
+        f32 TranslateTool_ArrowLength;
+        f32 TranslateTool_ArrowWidth;
+        f32 TranslateTool_BoxSize;
         
+        f32 TransformTool_BoxSize;
+        
+        f32 RotateTool_Radius;
+        f32 RotateTool_Thickness;
     };
     
-    
+    tool_type Tool;
+    transform_tool_data TransformToolData;
 };
 
+
+
+void
+DrawRectangleLinesPro(v2 Pos, v2 Dim, f32 Rotation, f32 Thickness, Color DrawColor)
+{
+    f32 RadRotation = Rotation*DEG2RAD;
+    v2 TopLeft = Pos + Vector2Rotate(V2(-Dim.x/2, -Dim.y/2), RadRotation);
+    v2 TopRight = Pos + Vector2Rotate(V2(Dim.x/2, -Dim.y/2), RadRotation);
+    v2 BottomRight = Pos + Vector2Rotate(V2(Dim.x/2, Dim.y/2), RadRotation);
+    v2 BottomLeft = Pos + Vector2Rotate(V2(-Dim.x/2, Dim.y/2), RadRotation);
+    
+    DrawLineEx(TopLeft + V2(-Thickness/2, 0), TopRight + V2(Thickness/2, 0), Thickness, DrawColor);
+    DrawLineEx(TopRight, BottomRight, Thickness, DrawColor);
+    DrawLineEx(BottomRight + V2(Thickness/2, 0), BottomLeft + V2(-Thickness/2, 0), Thickness, DrawColor);
+    DrawLineEx(BottomLeft, TopLeft, Thickness, DrawColor);
+}
 
 #endif //MISERY_H
