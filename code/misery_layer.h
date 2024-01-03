@@ -35,9 +35,9 @@ MakeNewRectLayer(program_state *ProgramState)
 {
     layer Layer;
     Layer.Type = LayerType_Rectangle;
-    // TODO(cheryl): put this in the middle and scale based on canvas size
+    // TODO(aidan): put this in the middle and scale based on canvas size
     Layer.Trans = Trans(50, 50, 100, 100, 0);
-    // TODO(cheryl): determines on how we handle the ui for layer color
+    // TODO(aidan): determines on how we handle the ui for layer color
     Layer.ModColor = RED;
     ListAdd(&ProgramState->OpenDocuments[0].Layers, Layer);
 }

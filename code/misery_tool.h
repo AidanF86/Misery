@@ -6,14 +6,14 @@
 void
 FlipImageIfNecessary(program_state *ProgramState, layer *Layer)
 {
-    // TODO(cheryl): REIMPLEMENT
+    // TODO(aidan): REIMPLEMENT
 }
 
 
 b32
 PointInGrabPoint(v2 Pos, grab_point *GrabPoint, f32 Rotation)
 {
-    // TODO(cheryl): this might be inefficient
+    // TODO(aidan): this might be inefficient
     f32 RadRotation = Rotation*DEG2RAD;
     v2 Vertices[4];
     Vertices[0] = GrabPoint->Pos + Vector2Rotate(V2(-GrabPoint->w/2, -GrabPoint->h/2), RadRotation);
@@ -220,7 +220,7 @@ ProcessTool(program_state *ProgramState)
         {
             if(DraggingAnyTransformControl)
             {
-                // TODO(cheryl): append action
+                // TODO(aidan): append action
             }
             for(int i = 0; i < 9; i++)
             {
@@ -301,7 +301,7 @@ InitializeTransformToolData(program_state *ProgramState)
     transform_tool_data *Data = &ProgramState->TransformToolData;
     for(int i = 0; i < sizeof(*Data) / sizeof(grab_point); i++)
     {
-        // TODO(cheryl): check this number
+        // TODO(aidan): check this number
         Data->GrabPoints[i] = {0};
     }
     Data->XArrow.MoveX = true;
@@ -339,7 +339,7 @@ InitializeTransformToolData(program_state *ProgramState)
 void
 UpdateTransformToolGeometry(program_state *ProgramState)
 {
-    // TODO(cheryl): Account for rotation (this is a big task).
+    // TODO(aidan): Account for rotation (this is a big task).
     rect *View = &ProgramState->View;
     document *Document = &ProgramState->OpenDocuments[ProgramState->CurrentDocumentIndex];
     layer *Layer = &Document->Layers[Document->LayerIndex];
@@ -378,7 +378,7 @@ UpdateTransformToolGeometry(program_state *ProgramState)
     v2 Left = Pos + Vector2Rotate(V2(-w/2, 0), RadRotation);
     
     // TRANSLATE
-    // TODO(cheryl): add option to have local and global transform
+    // TODO(aidan): add option to have local and global transform
     Data->XArrow.Pos = Pos + Vector2Rotate(V2(TranslateTool_ArrowLength/2, 0), RadRotation);
     Data->XArrow.Dim = V2(TranslateTool_ArrowLength,
                           TranslateTool_ArrowWidth);

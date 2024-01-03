@@ -44,7 +44,7 @@ DrawLayer(layer *Layer)
             int YFlip = (!Layer->FlippedY) * 2 - 1;
             rect SourceRect = Rect(0, 0, XFlip * Layer->Texture.width, YFlip * Layer->Texture.height);
             
-            // TODO(cheryl): this doesn't feel right, maybe check later
+            // TODO(aidan): this doesn't feel right, maybe check later
             v2 Origin = V2(Layer->w/2, Layer->h/2);
             rect DrawRect = Rect(Layer->x, Layer->y, Layer->w, Layer->h);
             
@@ -182,7 +182,7 @@ extern "C"
             f32 dScale = 0;
             f32 MouseScroll = GetMouseWheelMoveV().y;
             dScale += MouseScroll;
-            // TODO(cheryl): move towards (or away from) cursor upon mouse scroll
+            // TODO(aidan): move towards (or away from) cursor upon mouse scroll
             
             if(IsKeyDown(KEY_EQUAL))
             {
@@ -388,7 +388,7 @@ extern "C"
                     {
                         for(int i = ActionStack->Count; i > 0; i--)
                         {
-                            // TODO(cheryl): proper action naming
+                            // TODO(aidan): proper action naming
                             action *Action = &ProgramState->ActionStack[i-1];
                             if(Action->Type == Action_Translate)
                             {

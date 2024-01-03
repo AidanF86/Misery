@@ -85,7 +85,7 @@ LinuxLoadProgramCode(const char *FileName)
 
 int main()
 {
-    // TODO(cheryl): change this to a better location
+    // TODO(aidan): change this to a better location
     mkdir("./logs", 0755);
     char LogFileNameBuffer[50];
     time_t StartTime = time(NULL);

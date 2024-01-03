@@ -6,7 +6,7 @@
 b32
 SaveDocument(document *Document)
 {
-    // TODO(cheryl)
+    // TODO(aidan)
     return false;
 }
 
@@ -14,7 +14,7 @@ b32
 ExportDocument(document *Document)
 {
     // write to png file
-    // TODO(cheryl): add file dialog, add multiple export filetypes
+    // TODO(aidan): add file dialog, add multiple export filetypes
     
     Image DocumentImage = LoadImageFromTexture(Document->Texture.texture);
     
@@ -31,7 +31,7 @@ ExportDocument(document *Document)
 void
 MakeNewLayerFromPath(program_state *ProgramState, const char *Path)
 {
-    // TODO(cheryl): probably handle urls here
+    // TODO(aidan): probably handle urls here
     Image LayerImage = LoadImage(Path);
     MakeNewLayerFromImage(ProgramState, LayerImage);
 }
@@ -41,8 +41,8 @@ HandleFileDrop(program_state *ProgramState)
 {
     FilePathList Files = LoadDroppedFiles();
     
-    // TODO(cheryl): once again, handle different image filetypes
-    // TODO(cheryl): handle loading from urls
+    // TODO(aidan): once again, handle different image filetypes
+    // TODO(aidan): handle loading from urls
     
     // Only load one image
     if(Files.count == 0)

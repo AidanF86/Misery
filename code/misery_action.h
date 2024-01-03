@@ -3,7 +3,7 @@
 #ifndef MISERY_ACTION_H
 #define MISERY_ACTION_H
 
-// TODO(cheryl): BROKEN, FIX
+// TODO(aidan): BROKEN, FIX
 
 void
 UndoAction(program_state *ProgramState, action *Action)
@@ -14,8 +14,8 @@ UndoAction(program_state *ProgramState, action *Action)
 #if 0
     if(Action->Type == Action_Translate)
     {
-        // TODO(cheryl): wtf?? %d is useless here
-        // TODO(cheryl): IMPLEMENT A GODDAMN LOGGING SYSTEM
+        // TODO(aidan): wtf?? %d is useless here
+        // TODO(aidan): IMPLEMENT A GODDAMN LOGGING SYSTEM
         // AND A GOOD ONE AT THAT
         printf("UNDOING: Translate Action: %d to %d\n", Action->Translate_InitialPosition, Action->FinalPosition);
         Layer->Rect.x = Action->Translate_InitialPosition.x;
@@ -91,7 +91,7 @@ UndoOrRedoTo(program_state *ProgramState, int Index)
 void
 AddAction(program_state *ProgramState, action Action)
 {
-    // TODO(cheryl): test this
+    // TODO(aidan): test this
     action_list *ActionStack = &ProgramState->ActionStack;
     if(ProgramState->PrevActionIndex == ActionStack->Count - 1 || ActionStack->Count == 0)
     {

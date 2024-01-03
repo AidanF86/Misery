@@ -16,7 +16,7 @@ Log(string String)
     
     for(int i = 0; i < String.Length; i++)
     {
-        // NOTE(cheryl): does stdout work on windows?
+        // NOTE(aidan): does stdout work on windows?
         putc(String.Data[i], LogFile);
     }
     putc('\n', LogFile);
